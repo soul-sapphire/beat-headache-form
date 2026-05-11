@@ -282,146 +282,246 @@ const hasAny = (list, words) => {
 };
 
 const applyForwardReflections = (form) => {
+    // Deep clone to avoid direct mutation
     const next = JSON.parse(JSON.stringify(form));
 
-    // Page 1 -> Later
+    // Helper to add note without duplication
+    const addNote = (current, note) => {
+        if (!note) return current;
+        if (!current) return note;
+        if (current.includes(note)) return current;
+        return `${current}\n${note}`;
+    };
+
+    // PAGE 1 -> FUTURE PAGES
+
+    // 1. Age under 5
     const age = toNumber(next.patient.age);
     if (age > 0 && age < 5) {
         next.redFlags.position = addToList(next.redFlags.position, "Toddler (below 5 yrs)");
-        next.examination.weightForHeight = appendPrompt(
-            next.examination.weightForHeight,
-            "Age is under 5 years, consider weight-for-height assessment."
-        );
+        next.examination.weightForHeight = addNote(next.examination.weightForHeight, "Suggested because patient is below 5 years.");
     }
+
+    // 2. Email reuse
     if (next.patient.email && !next.final.ccEmail) {
         next.final.ccEmail = next.patient.email;
     }
 
+    // 3 & 4. Family migraine/headache vs Lack of Family History
     let familyHeadacheFound = false;
     let anyFamilyIssue = false;
     next.familyRows.forEach((row) => {
         if (hasAny(row.issues, ["Migraine/Headache"])) familyHeadacheFound = true;
         if (row.issues && row.issues.length > 0) anyFamilyIssue = true;
-        if (hasAny(row.issues, ["Alergies"])) {
-            next.medical.secondaryStatus = appendPrompt(next.medical.secondaryStatus, `Family history of allergies (${row.relation}).`);
-            next.examination["Tenderness over Sinus"] = "+";
-        }
-        if (hasAny(row.issues, ["DM", "CVD", "HT", "Cancer", "Overweight/Obese"])) {
-            next.redFlags.systemic = addToList(next.redFlags.systemic, "Comorbidities");
-        }
     });
+
     if (familyHeadacheFound) {
-        next.final.diagnosis = appendPrompt(next.final.diagnosis, "Family history of Migraine/Headache - supporting background.");
-    }
-    if (anyFamilyIssue && !familyHeadacheFound) {
+        next.final.diagnosis = addNote(
+            next.final.diagnosis,
+            "Family migraine/headache history reported. Doctor must confirm clinical relevance."
+        );
+    } else if (anyFamilyIssue) {
+        // Rule 4: If any issue exists but NOT migraine/headache
         next.redFlags.position = addToList(next.redFlags.position, "Lack of Family History");
     }
 
-    // Page 2 -> Later
+    // 5. Family comorbidities
+    const familyComorbidities = ["DM", "CVD", "HT", "Cancer", "Overweight/Obese"];
+    const hasFamilyComorb = next.familyRows.some((row) => hasAny(row.issues, familyComorbidities));
+    if (hasFamilyComorb) {
+        next.redFlags.systemic = addToList(next.redFlags.systemic, "Comorbidities");
+    }
+
+    // 6. Family allergies
+    const hasFamilyAllergy = next.familyRows.some((row) => hasAny(row.issues, ["Alergies"]));
+    if (hasFamilyAllergy) {
+        next.medical.secondaryStatus = addNote(
+            next.medical.secondaryStatus,
+            "Suggested review: family allergy history reported on Page 1."
+        );
+        next.examination["Tenderness over Sinus.describe"] = addNote(
+            next.examination["Tenderness over Sinus.describe"],
+            "Suggested check: allergy/sinus-related headache possibility from Page 1 family history."
+        );
+    }
+
+    // PAGE 2 -> FUTURE PAGES
+
+    // 7. Toothache under Exclude
     const excludes = next.headache.exclude || [];
     if (excludes.includes("Toothache")) {
-        next.medical.secondaryStatus = appendPrompt(next.medical.secondaryStatus, "Toothache reported.");
-        next.examination.Teeth = "AN";
-    }
-    if (excludes.includes("Ear pain")) {
-        next.medical.secondaryStatus = appendPrompt(next.medical.secondaryStatus, "Ear pain reported. Review ENT/Secondary status.");
-    }
-    if (excludes.includes("Throat Pain")) {
-        next.medical.secondaryStatus = appendPrompt(next.medical.secondaryStatus, "Throat pain reported.");
-        next.examination.Throat = "AN";
-    }
-    if (excludes.includes("Neck pain")) {
-        next.examination["Neck stifness"] = "+";
+        next.medical.secondaryStatus = addNote(
+            next.medical.secondaryStatus,
+            "Possible non-primary headache source: toothache reported on Page 2."
+        );
+        next.examination["Teeth.describe"] = addNote(next.examination["Teeth.describe"], "Suggested check: toothache reported on Page 2.");
     }
 
+    // 8. Ear pain under Exclude
+    if (excludes.includes("Ear pain")) {
+        next.medical.secondaryStatus = addNote(
+            next.medical.secondaryStatus,
+            "Possible ENT-related source: ear pain reported on Page 2."
+        );
+    }
+
+    // 9. Throat Pain under Exclude
+    if (excludes.includes("Throat Pain")) {
+        next.medical.secondaryStatus = addNote(
+            next.medical.secondaryStatus,
+            "Possible secondary source: throat pain reported on Page 2."
+        );
+        next.examination["Throat.describe"] = addNote(next.examination["Throat.describe"], "Suggested check: throat pain reported on Page 2.");
+    }
+
+    // 10. Neck pain under Exclude
+    if (excludes.includes("Neck pain")) {
+        next.examination["Neck stifness.describe"] = addNote(
+            next.examination["Neck stifness.describe"],
+            "Suggested check: neck pain reported on Page 2."
+        );
+    }
+
+    // 11. Occipital location
     const locationsVal = next.history.location || [];
     if (locationsVal.includes("Occipital")) {
-        next.medical.secondaryStatus = appendPrompt(next.medical.secondaryStatus, "Occipital location - review for secondary causes.");
+        next.medical.secondaryStatus = addNote(
+            next.medical.secondaryStatus,
+            "Review needed: occipital headache location reported on Page 2."
+        );
     }
 
-    const isLSorRS =
-        next.history.frontalSide === "L/S" ||
-        next.history.frontalSide === "R/S" ||
-        next.history.temporalSide === "L/S" ||
-        next.history.temporalSide === "R/S";
-    if ((locationsVal.includes("Frontal") || locationsVal.includes("Temporal")) && isLSorRS) {
+    // 12. Frontal/Temporal + L/S or R/S
+    const sideUnilateral = ["L/S", "R/S"];
+    const isUnilateral = sideUnilateral.includes(next.history.frontalSide) || sideUnilateral.includes(next.history.temporalSide);
+    if ((locationsVal.includes("Frontal") || locationsVal.includes("Temporal")) && isUnilateral) {
         next.diagnosis.migraineNoAuraCharacteristics = addToList(next.diagnosis.migraineNoAuraCharacteristics, "unilateral location");
     }
-    if (locationsVal.includes("Allover") || next.history.frontalSide === "B/L" || next.history.temporalSide === "B/L") {
+
+    // 13. B/L side or Allover location
+    const isBilateral = next.history.frontalSide === "B/L" || next.history.temporalSide === "B/L" || locationsVal.includes("Allover");
+    if (isBilateral) {
         next.diagnosis.tensionCharacteristics = addToList(next.diagnosis.tensionCharacteristics, "bilateral location");
     }
 
-    const nature = next.history.painNature || [];
-    if (locationsVal.includes("Band like") || nature.includes("Constant pressure, tightening (like a band)")) {
-        next.diagnosis.tensionCharacteristics = addToList(next.diagnosis.tensionCharacteristics, "pressing or tightening (non-pulsating) quality");
+    // 14. Band like
+    if (locationsVal.includes("Band like")) {
+        next.diagnosis.tensionCharacteristics = addToList(next.diagnosis.tensionCharacteristics, "bilateral location");
+        next.diagnosis.tensionCharacteristics = addToList(
+            next.diagnosis.tensionCharacteristics,
+            "pressing or tightening (non-pulsating) quality"
+        );
     }
+
+    // 15. Throbbing/pulsing
+    const nature = next.history.painNature || [];
     if (nature.includes("Throbbing or pulsing (like a heart beat)")) {
         next.diagnosis.migraineNoAuraCharacteristics = addToList(next.diagnosis.migraineNoAuraCharacteristics, "pulsating quality");
     }
+
+    // 16. Constant pressure/tightening
+    if (nature.includes("Constant pressure, tightening (like a band)")) {
+        next.diagnosis.tensionCharacteristics = addToList(
+            next.diagnosis.tensionCharacteristics,
+            "pressing or tightening (non-pulsating) quality"
+        );
+    }
+
+    // 17. Thunder clapping
     if (nature.includes("Thunder clapping")) {
         next.redFlags.position = addToList(next.redFlags.position, "Sudden onset");
         next.examination.tests = addToList(next.examination.tests, "Brain Imaging");
     }
+
+    // 18. Sharp/stabbing
     if (nature.includes("Sharp or stabbing")) {
-        next.final.diagnosis = appendPrompt(next.final.diagnosis, "Sharp/stabbing pain reported - doctor review required.");
+        next.final.diagnosis = addNote(next.final.diagnosis, "Doctor review note: sharp/stabbing pain quality reported on Page 2.");
     }
 
-    const perDayVal = toNumber(next.history.perDay);
-    const perWeekVal = toNumber(next.history.perWeek);
-    const perMonthVal = toNumber(next.history.perMonth);
-    const totalFreq = perDayVal * 30 + perWeekVal * 4 + perMonthVal;
+    // 19. Frequency calculation
+    const perDay = toNumber(next.history.perDay);
+    const perWeek = toNumber(next.history.perWeek);
+    const perMonth = toNumber(next.history.perMonth);
+    const attacksPerMonth = perDay * 30 + perWeek * 4 + perMonth;
 
-    if (totalFreq >= 2) next.diagnosis["migraineAura.0"] = "Yes";
-    if (totalFreq >= 5) {
+    if (attacksPerMonth >= 2) {
+        next.diagnosis["migraineAura.0"] = "Yes";
+    }
+    if (attacksPerMonth >= 5) {
         next.diagnosis["migraineNoAura.0"] = "Yes";
         next.diagnosis["cluster.0"] = "Yes";
     }
-    if (totalFreq >= 10) next.diagnosis["tension.0"] = "Yes";
+    if (attacksPerMonth >= 10) {
+        next.diagnosis["tension.0"] = "Yes";
+    }
 
-    const durationVal = next.history.episodeDuration;
-    if (durationVal === "More than 04 Hours" || durationVal === "All day") {
+    // 20. Duration
+    const dur = next.history.episodeDuration;
+    if (dur === "More than 04 Hours" || dur === "All day") {
         next.diagnosis["migraineNoAura.1"] = "Yes";
     }
-    if (durationVal) {
+    if (dur) {
         next.diagnosis["tension.1"] = "Yes";
     }
-    if (durationVal === "1-2 Hour" || durationVal === "2-4 Hour") {
+    if (dur === "1-2 Hour" || dur === "2-4 Hour") {
         next.diagnosis["cluster.1"] = "Yes";
     }
 
-    const intensityVal = toNumber(next.history.intensity);
-    if (intensityVal >= 4)
+    // 21. Intensity
+    const intensity = toNumber(next.history.intensity);
+    if (intensity >= 4) {
         next.diagnosis.migraineNoAuraCharacteristics = addToList(
             next.diagnosis.migraineNoAuraCharacteristics,
             "moderate or severe pain intensity"
         );
-    if (intensityVal >= 1 && intensityVal <= 6)
+    }
+    if (intensity > 0 && intensity <= 6) {
         next.diagnosis.tensionCharacteristics = addToList(next.diagnosis.tensionCharacteristics, "mild or moderate intensity");
-    if (intensityVal >= 7) next.diagnosis["cluster.1"] = "Yes";
-    if (intensityVal > 0) next.final.diagnosis = appendPrompt(next.final.diagnosis, `Reported intensity: ${intensityVal}/10.`);
+    }
+    if (intensity >= 7) {
+        next.diagnosis["cluster.1"] = "Yes";
+    }
+    if (intensity > 0) {
+        next.final.diagnosis = addNote(next.final.diagnosis, `Severity score from Page 2: ${intensity}/10.`);
+    }
 
+    // 22. Relief
     const relief = next.history.relief || [];
-    if (relief.includes("Sleeping in a dim lit, quiet room"))
-        next.final.diagnosis = appendPrompt(next.final.diagnosis, "Sleeping in dim quiet room helps - migraine supporting.");
-    if (relief.includes("Having a meal"))
-        next.final.diagnosis = appendPrompt(next.final.diagnosis, "Having a meal helps - review FRESSH food score.");
-    if (relief.includes("Drinking water"))
-        next.final.diagnosis = appendPrompt(next.final.diagnosis, "Drinking water helps - review FRESSH hydration.");
-    if (relief.includes("Relaxation (Eg: meditation)"))
-        next.final.diagnosis = appendPrompt(next.final.diagnosis, "Relaxation helps - review FRESSH relaxation.");
-    if (relief.includes("Medication"))
-        next.final.diagnosis = appendPrompt(next.final.diagnosis, "Medication helps - review medication plan.");
+    if (relief.includes("Sleeping in a dim lit, quiet room")) {
+        next.final.diagnosis = addNote(next.final.diagnosis, "Migraine-supporting behaviour: sleep/dim quiet room relieves headache.");
+    }
+    if (relief.includes("Having a meal")) {
+        next.final.diagnosis = addNote(
+            next.final.diagnosis,
+            "Lifestyle note: headache improves after meals; review missed meals under FRESSH."
+        );
+    }
+    if (relief.includes("Drinking water")) {
+        next.final.diagnosis = addNote(next.final.diagnosis, "Lifestyle note: headache improves with water; review hydration under FRESSH.");
+    }
+    if (relief.includes("Relaxation (Eg: meditation)")) {
+        next.final.diagnosis = addNote(
+            next.final.diagnosis,
+            "Lifestyle note: headache improves with relaxation; review relaxation under FRESSH."
+        );
+    }
+    if (relief.includes("Medication")) {
+        next.final.medicationPlan = addNote(next.final.medicationPlan, "Previous response: medication reported as relieving headache.");
+    }
 
+    // 23. Time of day
     const timeOfDay = next.history.timeOfDay || [];
     if (hasAny(timeOfDay, ["Morning", "Night"])) {
         next.redFlags.position = addToList(next.redFlags.position, "Onset in sleep/early morning");
     }
 
+    // 24. Premonitory symptoms
     const premonitory = next.history.premonitory || [];
     if (premonitory.length > 0) {
-        next.final.diagnosis = appendPrompt(next.final.diagnosis, `Premonitory symptoms: ${premonitory.join(", ")}.`);
+        next.final.diagnosis = addNote(next.final.diagnosis, `Premonitory symptoms reported: ${premonitory.join(", ")}.`);
     }
 
+    // 25. Activity aggravation
     const aggravating = next.history.aggravating || [];
     if (hasAny(aggravating, ["Activity", "Walking", "Climbing Stairs"])) {
         next.diagnosis.migraineNoAuraCharacteristics = addToList(
@@ -429,11 +529,16 @@ const applyForwardReflections = (form) => {
             "aggravation by or causing avoidance of routine physical activity (e.g. walking or climbing stairs)"
         );
     }
+
+    // 26. Reading aggravation
     if (aggravating.includes("Reading")) {
-        next.examination["Eye Movement"] = "AN";
-        next.examination["Eye Movement.describe"] = appendPrompt(next.examination["Eye Movement.describe"], "Reading aggravates headache.");
+        next.examination["Eye Movement.describe"] = addNote(
+            next.examination["Eye Movement.describe"],
+            "Suggested check: reading aggravates headache on Page 2."
+        );
     }
 
+    // 27. Nausea/Vomiting
     const associated = next.history.associated || [];
     if (hasAny(associated, ["Nausea", "Vomiting"])) {
         next.diagnosis.migraineNoAuraAssociated = addToList(next.diagnosis.migraineNoAuraAssociated, "nausea and/or vomiting");
@@ -441,127 +546,175 @@ const applyForwardReflections = (form) => {
     if (associated.includes("Vomiting")) {
         next.redFlags.systemic = addToList(next.redFlags.systemic, "Vomiting");
     }
+
+    // 28. Light/Sound sensitivity
     if (hasAny(associated, ["Light Sensitivity", "Sound Sensitivity"])) {
         next.diagnosis.migraineNoAuraAssociated = addToList(next.diagnosis.migraineNoAuraAssociated, "photophobia and phonophobia");
+        next.diagnosis.tensionAssociated = addToList(
+            next.diagnosis.tensionAssociated,
+            "no more than one of photophobia or phonophobia"
+        );
     }
+
+    // 29. Aura
     if (associated.includes("Aura")) {
         next.diagnosis["migraineAura.1"] = "Yes";
     }
+
+    // 30. Vision/Diplopia
     if (associated.includes("Vision issues/Diplopia")) {
         next.redFlags.neuro = addToList(next.redFlags.neuro, "Visual disturbances");
-        next.examination["Eye Movement"] = "AN";
-        next.examination.Papilloedema = "+";
-        next.examination.crNvPalsy = "Y";
-        next.examination.crNvPalsyDescribe = appendPrompt(next.examination.crNvPalsyDescribe, "Vision issues reported.");
+        next.redFlags.neuro = addToList(next.redFlags.neuro, "Eye movement abnormalities");
+        next.examination["Eye Movement.describe"] = addNote(
+            next.examination["Eye Movement.describe"],
+            "Suggested check: vision issues/diplopia reported on Page 2."
+        );
     }
+
+    // 31. Walking difficulty
     if (associated.includes("Walking difficulty")) {
         next.redFlags.neuro = addToList(next.redFlags.neuro, "Abnormal gait");
-        next.examination.Gait = "AN";
+        next.examination["Gait.describe"] = addNote(next.examination["Gait.describe"], "Suggested check: walking difficulty reported on Page 2.");
     }
+
+    // 32. Balance issues
     if (associated.includes("Balance issues")) {
         next.redFlags.neuro = addToList(next.redFlags.neuro, "Ataxia");
-        next.examination.Gait = "AN";
+        next.examination["Gait.describe"] = addNote(next.examination["Gait.describe"], "Suggested check: balance issues reported on Page 2.");
     }
+
+    // 33. Epilepsy/Fainting
     if (hasAny(associated, ["Epilepsy", "Fainting"])) {
         next.redFlags.neuro = addToList(next.redFlags.neuro, "Seizures");
-        next.examination.tests = addToList(next.examination.tests, "Brain Imaging");
     }
+
+    // 34. Behavioral changes
     if (associated.includes("Behavioral changes")) {
         next.redFlags.neuro = addToList(next.redFlags.neuro, "Changes in behavior or cognition");
-        next.evaluations["Professional Evaluation.Behavior.notes"] = appendPrompt(
-            next.evaluations["Professional Evaluation.Behavior.notes"],
-            "Behavioral changes reported."
+        next.evaluations["Parental Evaluation.Behavior.notes"] = addNote(
+            next.evaluations["Parental Evaluation.Behavior.notes"],
+            "Suggested from Page 2: behavioral changes reported."
         );
     }
+
+    // 35. Attention issues
     if (associated.includes("Attention issues")) {
         next.redFlags.neuro = addToList(next.redFlags.neuro, "Changes in behavior or cognition");
-        next.evaluations["Professional Evaluation.Attention.notes"] = appendPrompt(
-            next.evaluations["Professional Evaluation.Attention.notes"],
-            "Attention issues reported."
+        next.evaluations["Parental Evaluation.Attention.notes"] = addNote(
+            next.evaluations["Parental Evaluation.Attention.notes"],
+            "Suggested from Page 2: attention issue reported."
         );
     }
+
+    // 36. Memory issues
     if (associated.includes("Memory issues")) {
         next.redFlags.neuro = addToList(next.redFlags.neuro, "Changes in behavior or cognition");
-        next.evaluations["Professional Evaluation.Memory.notes"] = appendPrompt(
-            next.evaluations["Professional Evaluation.Memory.notes"],
-            "Memory issues reported."
+        next.evaluations["Parental Evaluation.Memory.notes"] = addNote(
+            next.evaluations["Parental Evaluation.Memory.notes"],
+            "Suggested from Page 2: memory issue reported."
         );
     }
+
+    // 37. Tearing
     if (associated.includes("Tearing")) {
         next.diagnosis.clusterSymptoms = addToList(next.diagnosis.clusterSymptoms, "conjunctival injection and/or lacrimation");
     }
+
+    // 38. Atopic disorder
     if (associated.includes("Atopic disorder")) {
-        next.medical.secondaryStatus = appendPrompt(next.medical.secondaryStatus, "Atopic disorder reported.");
-        next.examination["Tenderness over Sinus"] = "+";
+        next.medical.secondaryStatus = addNote(next.medical.secondaryStatus, "Suggested review: atopic disorder reported on Page 2.");
+        next.examination["Tenderness over Sinus.describe"] = addNote(
+            next.examination["Tenderness over Sinus.describe"],
+            "Suggested check: atopic/sinus-related headache possibility from Page 2."
+        );
     }
+
+    // 39. Tiring quickly
     if (associated.includes("Tiring quickly")) {
         next.examination.tests = addToList(next.examination.tests, "FBC");
     }
 
-    // Page 3 -> Later
-    if (next.medical.pastMedical) {
+    // PAGE 3 -> FUTURE PAGES
+
+    // 40. Past medical history
+    if (next.medical.pastMedical && next.medical.pastMedical.trim().length > 0) {
         next.redFlags.systemic = addToList(next.redFlags.systemic, "Comorbidities");
-        next.final.diagnosis = appendPrompt(next.final.diagnosis, `PMH: ${next.medical.pastMedical}`);
     }
-    if (next.medical.drugHistory) {
-        next.final.medicationPlan = appendPrompt(next.final.medicationPlan, `Drug History: ${next.medical.drugHistory}`);
-    }
-    if (hasAny(next.medical.allergies, ["Food", "Drug", "Plaster"]) || next.medical.allergySpecify) {
-        next.final.medicationPlan = appendPrompt(
+
+    // 41. Drug history
+    if (next.medical.drugHistory && next.medical.drugHistory.trim().length > 0) {
+        next.final.medicationPlan = addNote(
             next.final.medicationPlan,
-            `Allergy Warning: ${next.medical.allergies?.join(", ") || ""}. ${next.medical.allergySpecify || ""}`
+            "Check current/past drug history from Page 3 before final medication plan."
         );
     }
 
-    const systemic = next.redFlags.systemic || [];
-    if (systemic.includes("Fever, acute symptoms")) {
+    // 42. Allergy history
+    if ((next.medical.allergies && next.medical.allergies.length > 0) || (next.medical.allergySpecify && next.medical.allergySpecify.trim().length > 0)) {
+        next.final.medicationPlan = addNote(next.final.medicationPlan, "Medication safety warning: allergy history reported on Page 3.");
+    }
+
+    // 43. Fever red flag
+    const systemicFlags = next.redFlags.systemic || [];
+    if (systemicFlags.includes("Fever, acute symptoms")) {
         ["FBC", "CRP", "ESR"].forEach((t) => (next.examination.tests = addToList(next.examination.tests, t)));
     }
-    if (systemic.includes("Weight loss")) {
+
+    // 44. Weight loss red flag
+    if (systemicFlags.includes("Weight loss")) {
         next.examination.tests = addToList(next.examination.tests, "FBC");
-        next.examination.height = appendPrompt(next.examination.height, "Weight loss noted.");
-        next.examination.weight = appendPrompt(next.examination.weight, "Weight loss noted.");
     }
 
-    const neuro = next.redFlags.neuro || [];
-    if (neuro.includes("Papilledema")) {
-        next.examination.Papilloedema = "+";
-    }
-    if (hasAny(neuro, ["Visual disturbances", "Eye movement abnormalities"])) {
-        next.examination["Eye Movement"] = "AN";
-    }
-    if (hasAny(neuro, ["Abnormal gait", "Ataxia"])) {
-        next.examination.Gait = "AN";
+    // 45. Papilledema red flag
+    const neuroFlags = next.redFlags.neuro || [];
+    if (neuroFlags.includes("Papilledema")) {
+        next.examination["Papilloedema"] = "+";
     }
 
-    const position = next.redFlags.position || [];
-    if (
-        hasAny(position, [
-            "Progressive",
-            "Head trauma",
-            "Triggered by Valsalva",
-            "Sudden onset",
-            "Worse upright",
-            "Worse supine",
-            "Onset in sleep/early morning",
-        ])
-    ) {
+    // 46. Visual red flags
+    if (hasAny(neuroFlags, ["Visual disturbances", "Eye movement abnormalities"])) {
+        next.examination["Eye Movement.describe"] = addNote(
+            next.examination["Eye Movement.describe"],
+            "Suggested check: visual/eye red flag selected on Page 3."
+        );
+    }
+
+    // 47. Gait/Ataxia red flags
+    if (hasAny(neuroFlags, ["Abnormal gait", "Ataxia"])) {
+        next.examination["Gait.describe"] = addNote(next.examination["Gait.describe"], "Suggested check: gait/ataxia red flag selected on Page 3.");
+    }
+
+    // 48. Serious position/pattern red flags
+    const seriousPositionFlags = [
+        "Progressive",
+        "Head trauma",
+        "Triggered by Valsalva",
+        "Sudden onset",
+        "Worse upright",
+        "Worse supine",
+        "Onset in sleep/early morning",
+    ];
+    if (hasAny(next.redFlags.position, seriousPositionFlags)) {
         next.examination.tests = addToList(next.examination.tests, "Brain Imaging");
     }
 
-    // Page 5 -> Page 7
-    if (next.diagnosis["migraineNoAura.status"] === "Confirmed") {
-        next.final.diagnosis = appendPrompt(next.final.diagnosis, "Diagnosis Status: Migraine without Aura confirmed.");
-    }
-    if (next.diagnosis["migraineAura.status"] === "Confirmed") {
-        next.final.diagnosis = appendPrompt(next.final.diagnosis, "Diagnosis Status: Migraine with Aura confirmed.");
-    }
-    if (next.diagnosis["tension.status"] === "Confirmed") {
-        next.final.diagnosis = appendPrompt(next.final.diagnosis, "Diagnosis Status: Tension-type Headache confirmed.");
-    }
-    if (next.diagnosis["cluster.status"] === "Confirmed") {
-        next.final.diagnosis = appendPrompt(next.final.diagnosis, "Diagnosis Status: Cluster Headache confirmed.");
-    }
+    // PAGE 5 -> PAGE 7
+
+    // 49. Diagnosis status
+    const diagConditions = [
+        { id: "migraineNoAura.status", name: "Migraine without Aura" },
+        { id: "migraineAura.status", name: "Migraine with Aura" },
+        { id: "tension.status", name: "Tension-type Headache" },
+        { id: "cluster.status", name: "Cluster Headache" },
+    ];
+    diagConditions.forEach((cond) => {
+        if (next.diagnosis[cond.id]) {
+            next.final.diagnosis = addNote(
+                next.final.diagnosis,
+                `Suggested diagnosis status from Page 5: ${cond.name} = ${next.diagnosis[cond.id]}. Doctor must confirm.`
+            );
+        }
+    });
 
     return next;
 };
@@ -1030,6 +1183,46 @@ export default function BeatHeadacheNewPatientForm() {
                 </div>
 
                 {pages[page]()}
+
+                {/* Development Debug Panel */}
+                <div className="mt-12 rounded-3xl border border-slate-200 bg-slate-900 p-6 text-white shadow-xl">
+                    <div className="mb-4 flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-sky-400">Debug Reflection Panel</h3>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const sample = createInitialState();
+                                sample.patient.age = 4;
+                                sample.patient.email = "test@gmail.com";
+                                sample.history.painNature = ["Thunder clapping"];
+                                sample.history.associated = ["Vomiting", "Vision issues/Diplopia", "Walking difficulty"];
+                                sample.history.intensity = 7;
+                                sample.history.aggravating = ["Activity"];
+                                const reflected = applyForwardReflections(sample);
+                                console.log("Smoke Test Result:", reflected);
+                                alert("Smoke test completed. Check console/debug panel.");
+                            }}
+                            className="rounded-xl bg-sky-600 px-4 py-2 text-xs font-bold transition hover:bg-sky-500"
+                        >
+                            Run Reflection Smoke Test
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-6 text-xs md:grid-cols-2">
+                        <div className="space-y-2">
+                            <p><span className="font-bold text-slate-400">Current Page:</span> {page + 1}</p>
+                            <p><span className="font-bold text-slate-400">Systemic Flags:</span> {JSON.stringify(form.redFlags.systemic)}</p>
+                            <p><span className="font-bold text-slate-400">Neuro Flags:</span> {JSON.stringify(form.redFlags.neuro)}</p>
+                            <p><span className="font-bold text-slate-400">Position Flags:</span> {JSON.stringify(form.redFlags.position)}</p>
+                            <p><span className="font-bold text-slate-400">Exam Tests:</span> {JSON.stringify(form.examination.tests)}</p>
+                        </div>
+                        <div className="space-y-2">
+                            <p><span className="font-bold text-slate-400">Migraine Characteristics:</span> {JSON.stringify(form.diagnosis.migraineNoAuraCharacteristics)}</p>
+                            <p><span className="font-bold text-slate-400">Tension Characteristics:</span> {JSON.stringify(form.diagnosis.tensionCharacteristics)}</p>
+                            <p><span className="font-bold text-slate-400">Final Diagnosis:</span> <span className="text-sky-200 whitespace-pre-wrap">{form.final.diagnosis}</span></p>
+                            <p><span className="font-bold text-slate-400">Final Med Plan:</span> <span className="text-sky-200 whitespace-pre-wrap">{form.final.medicationPlan}</span></p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
     );
