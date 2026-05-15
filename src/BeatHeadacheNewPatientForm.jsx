@@ -1,4 +1,12 @@
 import React, { useMemo, useState } from "react";
+import { FileText, Stethoscope, Download } from "lucide-react";
+import { 
+  generatePatientReportPdf, 
+  generateDoctorReportPdf, 
+  getSuggestedDiagnosisSummary, 
+  getRedFlagSummary,
+  getFresshInterpretation
+} from "./reportUtils";
 
 const pageTitles = [
     "Patient, Birth & Family History",
@@ -2043,13 +2051,77 @@ export default function BeatHeadacheNewPatientForm() {
                     <Field label="Diagnosis"><TextArea value={form.final.diagnosis} onChange={(v) => update("final", "diagnosis", v)} /></Field>
                     <Field label="Medication Plan"><TextArea value={form.final.medicationPlan} onChange={(v) => update("final", "medicationPlan", v)} /></Field>
                     <Field label="CC Email Address"><TextInput type="email" value={form.final.ccEmail} onChange={(v) => update("final", "ccEmail", v)} /></Field>
-                    <button
-                        type="button"
-                        onClick={() => console.log("New Patient Form Data", form)}
-                        className="w-full rounded-2xl bg-sky-600 px-6 py-4 text-sm font-bold text-white shadow-lg shadow-sky-200 transition hover:bg-sky-700"
-                    >
-                        Submit
-                    </button>
+
+                    <div className="mt-8 space-y-6">
+                        <div className="rounded-2xl bg-slate-50 p-6 border border-slate-200">
+                            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <FileText className="h-5 w-5 text-sky-600" />
+                                Report Generation Preview
+                            </h3>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Likely Category</p>
+                                    <p className="text-sm font-bold text-slate-700">{getSuggestedDiagnosisSummary(form).likelyType}</p>
+                                </div>
+                                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Red Flags</p>
+                                    <p className={`text-sm font-bold ${getRedFlagSummary(form).length > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                                        {getRedFlagSummary(form).length} identified
+                                    </p>
+                                </div>
+                                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">FRESSH Score</p>
+                                    <p className="text-sm font-bold text-sky-700">{fresshTotal} / 60</p>
+                                </div>
+                            </div>
+                            
+                            <p className="mt-4 text-xs text-slate-500 italic">
+                                "Generate reports after completing the form. Doctor report includes clinical criteria reflections."
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    try {
+                                        generatePatientReportPdf(form, fresshTotal);
+                                    } catch (error) {
+                                        console.error("Patient report generation failed:", error);
+                                        alert("Patient report generation failed. Check console.");
+                                    }
+                                }}
+                                className="flex items-center justify-center gap-3 rounded-2xl bg-emerald-50 border-2 border-emerald-100 px-6 py-4 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100 hover:border-emerald-200"
+                            >
+                                <Download className="h-5 w-5" />
+                                Download Patient Summary PDF
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    try {
+                                        generateDoctorReportPdf(form, fresshTotal);
+                                    } catch (error) {
+                                        console.error("Doctor report generation failed:", error);
+                                        alert("Doctor report generation failed. Check console.");
+                                    }
+                                }}
+                                className="flex items-center justify-center gap-3 rounded-2xl bg-indigo-50 border-2 border-indigo-100 px-6 py-4 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100 hover:border-indigo-200"
+                            >
+                                <Stethoscope className="h-5 w-5" />
+                                Download Doctor Clinical Report PDF
+                            </button>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => console.log("New Patient Form Data", form)}
+                            className="w-full rounded-2xl bg-sky-600 px-6 py-4 text-sm font-bold text-white shadow-lg shadow-sky-200 transition hover:bg-sky-700"
+                        >
+                            Submit Form
+                        </button>
+                    </div>
                 </Card>
             </div>
         );
