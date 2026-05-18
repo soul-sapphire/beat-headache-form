@@ -82,99 +82,102 @@ export default function HomePage() {
   return (
     <div className="space-y-24 pb-20 transition-colors duration-300">
       
-      {/* A) Hero Section - Premium Navy to Teal Gradient Panel */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <div className="relative rounded-[2.5rem] bg-gradient-to-br from-slate-950 via-slate-900 to-sky-950 text-white shadow-2xl overflow-hidden px-6 py-16 sm:px-12 sm:py-20 lg:py-24">
-          <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-cyan-500/20 blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-sky-500/15 blur-3xl pointer-events-none" />
+      {/* A) Hero Section - Premium Medical Full-Bleed Design */}
+      <section className="w-full bg-gradient-to-b from-sky-50/70 via-slate-50/40 to-white dark:from-slate-950 dark:via-slate-900/50 dark:to-slate-950 border-b border-sky-100/40 dark:border-slate-900/60 py-10 lg:py-16 transition-colors duration-300">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="relative rounded-[2.5rem] bg-white/94 dark:bg-slate-900/85 border border-slate-300/55 dark:border-white/10 ring-1 ring-slate-100/80 dark:ring-white/5 text-slate-800 dark:text-slate-200 shadow-xl shadow-slate-200/35 dark:shadow-none overflow-hidden px-6 py-16 sm:px-12 sm:py-20 lg:py-24 transition-all duration-300">
+            {/* Soft decorative background blurs tailored to the theme */}
+            <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-cyan-100/15 dark:bg-cyan-500/5 blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-sky-100/15 dark:bg-sky-500/5 blur-3xl pointer-events-none" />
 
-          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
-            {/* Left Content Column */}
-            <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
-              <span className="inline-flex items-center px-3.5 py-1.5 rounded-full text-xs font-bold bg-cyan-400/10 text-cyan-300 border border-cyan-400/20 backdrop-blur-md uppercase tracking-wider">
-                🏥 Research-Ready Intake Assistant
-              </span>
-              
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.1] sm:leading-tight">
-                Structured child headache assessment for families and clinicians.
-              </h1>
-              
-              <p className="text-sm sm:text-base text-slate-350 max-w-2xl mx-auto lg:mx-0 leading-relaxed font-normal">
-                Beat Headache helps collect child headache history, lifestyle factors, warning signs, and clinical review notes in one organized pathway. The generated reports support doctor review and research documentation, but do not replace medical assessment.
-              </p>
-              
-              <p className="text-xs text-cyan-300 font-medium">
-                Designed to help families prepare for consultation and help clinicians review headache patterns more efficiently.
-              </p>
-              
-              <div className="pt-4 flex flex-col sm:flex-row justify-center lg:justify-start gap-4">
-                <Link
-                  to="/new-patient"
-                  className="flex items-center justify-center space-x-2 px-8 py-4 bg-gradient-to-r from-cyan-400 via-teal-400 to-sky-400 hover:from-cyan-500 hover:to-sky-500 text-slate-950 rounded-2xl font-bold shadow-lg shadow-cyan-500/20 hover:shadow-xl hover:shadow-cyan-500/30 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer focus-visible:ring-4 focus-visible:ring-sky-300 focus-visible:outline-none"
-                >
-                  <span>Start New Patient Form</span>
-                  <ArrowRight className="h-5 w-5" />
-                </Link>
-                <Link
-                  to="/about"
-                  className="flex items-center justify-center px-6 py-4 bg-white/10 hover:bg-white/15 text-white border border-white/20 rounded-2xl font-semibold backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 focus-visible:ring-4 focus-visible:ring-sky-300 focus-visible:outline-none"
-                >
-                  Learn How It Works
-                </Link>
-              </div>
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+              {/* Left Content Column */}
+              <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
+                <span className="inline-flex items-center px-3.5 py-1.5 rounded-full text-xs font-bold bg-sky-50 dark:bg-cyan-400/10 text-sky-700 dark:text-cyan-300 border border-sky-100 dark:border-cyan-400/20 backdrop-blur-md uppercase tracking-wider">
+                  🏥 Research-Ready Intake Assistant
+                </span>
+                
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.1] sm:leading-tight text-slate-900 dark:text-white">
+                  Structured child headache assessment for families and clinicians.
+                </h1>
+                
+                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-350 max-w-2xl mx-auto lg:mx-0 leading-relaxed font-normal">
+                  Beat Headache helps collect child headache history, lifestyle factors, warning signs, and clinical review notes in one organized pathway. The generated reports support doctor review and research documentation, but do not replace medical assessment.
+                </p>
+                
+                <p className="text-xs text-sky-600 dark:text-cyan-300 font-bold">
+                  Designed to help families prepare for consultation and help clinicians review headache patterns more efficiently.
+                </p>
+                
+                <div className="pt-4 flex flex-col sm:flex-row justify-center lg:justify-start gap-4">
+                  <Link
+                    to="/new-patient"
+                    className="flex items-center justify-center space-x-2 px-8 py-4 bg-gradient-to-r from-sky-600 via-sky-500 to-blue-600 hover:from-sky-700 hover:to-blue-700 dark:from-cyan-400 dark:via-teal-400 dark:to-sky-400 dark:hover:from-cyan-500 dark:hover:to-sky-500 text-white dark:text-slate-950 rounded-2xl font-bold shadow-lg shadow-sky-500/20 dark:shadow-cyan-500/20 hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5 cursor-pointer focus-visible:ring-4 focus-visible:ring-sky-300 focus-visible:outline-none"
+                  >
+                    <span>Start New Patient Form</span>
+                    <ArrowRight className="h-5 w-5" />
+                  </Link>
+                  <Link
+                    to="/about"
+                    className="flex items-center justify-center px-6 py-4 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white border border-slate-200 dark:border-white/20 rounded-2xl font-semibold backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 focus-visible:ring-4 focus-visible:ring-sky-300 focus-visible:outline-none"
+                  >
+                    Learn How It Works
+                  </Link>
+                </div>
 
-              {/* Trust Indicators */}
-              <div className="pt-8 border-t border-white/10 grid grid-cols-3 gap-4 text-center lg:text-left">
-                <div>
-                  <p className="text-2xl font-extrabold text-cyan-300">100%</p>
-                  <p className="text-xs text-slate-400 font-medium">Local Browser Privacy</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-extrabold text-teal-300">ICHD-3</p>
-                  <p className="text-xs text-slate-400 font-medium">Mapped Criteria</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-extrabold text-sky-300">PDF</p>
-                  <p className="text-xs text-slate-400 font-medium">Doctor Ready Output</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Side Panel: Layered Clinical Feature Cards */}
-            <div className="lg:col-span-5 flex flex-col space-y-4">
-              <div className="p-5 bg-white/10 backdrop-blur-xl border border-white/15 rounded-2xl shadow-xl flex items-start space-x-4">
-                <div className="p-2.5 bg-gradient-to-br from-cyan-400 to-sky-400 rounded-xl text-slate-950 shrink-0">
-                  <FileText className="h-5 w-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-white text-sm">Guided history</h4>
-                  <p className="text-xs text-slate-300 leading-relaxed mt-0.5">
-                    Step-by-step parent-friendly inputs with active local draft storage.
-                  </p>
+                {/* Trust Indicators */}
+                <div className="pt-8 border-t border-slate-200 dark:border-white/10 grid grid-cols-3 gap-4 text-center lg:text-left">
+                  <div>
+                    <p className="text-2xl font-extrabold text-sky-600 dark:text-cyan-300">100%</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Local Browser Privacy</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-extrabold text-teal-600 dark:text-teal-300">ICHD-3</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Mapped Criteria</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-extrabold text-blue-600 dark:text-sky-300">PDF</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Doctor Ready Output</p>
+                  </div>
                 </div>
               </div>
 
-              <div className="p-5 bg-white/10 backdrop-blur-xl border border-white/15 rounded-2xl shadow-xl flex items-start space-x-4">
-                <div className="p-2.5 bg-gradient-to-br from-teal-400 to-cyan-400 rounded-xl text-slate-950 shrink-0">
-                  <ShieldCheck className="h-5 w-5" />
+              {/* Right Side Panel: Layered Clinical Feature Cards */}
+              <div className="lg:col-span-5 flex flex-col space-y-4">
+                <div className="p-5 bg-slate-50/60 dark:bg-white/5 backdrop-blur-xl border border-slate-200/50 dark:border-white/10 rounded-2xl shadow-sm flex items-start space-x-4">
+                  <div className="p-2.5 bg-sky-100 dark:bg-cyan-400/10 text-sky-700 dark:text-cyan-300 rounded-xl shrink-0">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 dark:text-white text-sm">Guided history</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-350 leading-relaxed mt-0.5">
+                      Step-by-step parent-friendly inputs with active local draft storage.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-white text-sm">Red flag review</h4>
-                  <p className="text-xs text-slate-300 leading-relaxed mt-0.5">
-                    Automatically highlights potential warning criteria.
-                  </p>
-                </div>
-              </div>
 
-              <div className="p-5 bg-white/10 backdrop-blur-xl border border-white/15 rounded-2xl shadow-xl flex items-start space-x-4">
-                <div className="p-2.5 bg-gradient-to-br from-sky-400 to-indigo-400 rounded-xl text-slate-950 shrink-0">
-                  <FileSpreadsheet className="h-5 w-5" />
+                <div className="p-5 bg-slate-50/60 dark:bg-white/5 backdrop-blur-xl border border-slate-200/50 dark:border-white/10 rounded-2xl shadow-sm flex items-start space-x-4">
+                  <div className="p-2.5 bg-teal-100 dark:bg-teal-400/10 text-teal-700 dark:text-teal-350 rounded-xl shrink-0">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 dark:text-white text-sm">Red flag review</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-350 leading-relaxed mt-0.5">
+                      Automatically highlights potential warning criteria.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-white text-sm">Patient & doctor reports</h4>
-                  <p className="text-xs text-slate-300 leading-relaxed mt-0.5">
-                    Compile summaries immediately upon form completion.
-                  </p>
+
+                <div className="p-5 bg-slate-50/60 dark:bg-white/5 backdrop-blur-xl border border-slate-200/50 dark:border-white/10 rounded-2xl shadow-sm flex items-start space-x-4">
+                  <div className="p-2.5 bg-blue-100 dark:bg-sky-400/10 text-blue-700 dark:text-sky-350 rounded-xl shrink-0">
+                    <FileSpreadsheet className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 dark:text-white text-sm">Patient & doctor reports</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-350 leading-relaxed mt-0.5">
+                      Compile summaries immediately upon form completion.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
