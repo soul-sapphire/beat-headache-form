@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import SectionHeader from "../components/SectionHeader";
 import CTA from "../components/CTA";
+import MeetLumiSection from "../components/MeetLumiSection";
 
 export default function AboutPage() {
   const pillars = [
@@ -188,6 +189,9 @@ export default function AboutPage() {
           })}
         </div>
       </section>
+
+      {/* Meet Lumi intake Guide assistant */}
+      <MeetLumiSection />
 
       {/* 4. Important Limitation */}
       <section className="max-w-4xl mx-auto px-4">

@@ -9,7 +9,9 @@ import {
   UserCheck, 
   AlertTriangle,
   Database,
-  Apple
+  Apple,
+  ClipboardList,
+  Activity
 } from "lucide-react";
 import CTA from "../components/CTA";
 
@@ -56,26 +58,34 @@ export default function HomePage() {
     }
   ];
 
-  const steps = [
+  const timelineSteps = [
     {
       step: "01",
-      title: "Complete the guided intake",
-      description: "Parents or clinicians enter headache history, background details, and lifestyle information."
+      title: "Start Guided Intake",
+      description: "Families or clinicians enter details on patient history, headache patterns, warning signs, and FRESSH metrics.",
+      icon: ClipboardList,
+      color: "sky"
     },
     {
       step: "02",
-      title: "Review reflected clinical signals",
-      description: "The system highlights possible red flags, headache features, and report-ready summaries for clinician confirmation."
+      title: "Reflect Clinical Signals",
+      description: "The system highlights potential warning signs (red flags) and maps symptoms against diagnostic classifications.",
+      icon: Activity,
+      color: "teal"
     },
     {
       step: "03",
-      title: "Generate reports",
-      description: "Create a parent-friendly summary and a detailed clinical report for doctor review."
+      title: "Preview & Generate Reports",
+      description: "Instantly compile deidentified research logs, family-friendly summaries, and clinician-ready clinical reports.",
+      icon: FileSpreadsheet,
+      color: "blue"
     },
     {
       step: "04",
-      title: "Discuss with a qualified clinician",
-      description: "Reports support consultation. Diagnosis and treatment decisions remain with the clinician."
+      title: "Doctor Consultation Review",
+      description: "Present compiled PDF baseline documentation during consultation. Diagnosis and decisions remain with your doctor.",
+      icon: UserCheck,
+      color: "indigo"
     }
   ];
 
@@ -85,7 +95,7 @@ export default function HomePage() {
       {/* A) Hero Section - Premium Medical Full-Bleed Design */}
       <section className="w-full bg-gradient-to-b from-sky-50/70 via-slate-50/40 to-white dark:from-slate-950 dark:via-slate-900/50 dark:to-slate-950 border-b border-sky-100/40 dark:border-slate-900/60 py-10 lg:py-16 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative rounded-[2.5rem] bg-white/94 dark:bg-slate-900/85 border border-slate-300/55 dark:border-white/10 ring-1 ring-slate-100/80 dark:ring-white/5 text-slate-800 dark:text-slate-200 shadow-xl shadow-slate-200/35 dark:shadow-none overflow-hidden px-6 py-16 sm:px-12 sm:py-20 lg:py-24 transition-all duration-300">
+          <div className="relative rounded-[2.5rem] bg-white/94 dark:bg-slate-900/85 border border-slate-200/60 dark:border-white/10 ring-1 ring-white/70 dark:ring-white/5 text-slate-800 dark:text-slate-200 shadow-xl shadow-slate-200/35 dark:shadow-none overflow-hidden px-6 py-16 sm:px-12 sm:py-20 lg:py-24 transition-all duration-300">
             {/* Soft decorative background blurs tailored to the theme */}
             <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-cyan-100/15 dark:bg-cyan-500/5 blur-3xl pointer-events-none" />
             <div className="absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-sky-100/15 dark:bg-sky-500/5 blur-3xl pointer-events-none" />
@@ -185,6 +195,54 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* 1. How It Works Connected Visual Timeline */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center max-w-3xl mx-auto mb-16 space-y-3">
+          <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-cyan-400 border border-sky-100 dark:border-cyan-800/40 uppercase tracking-wide">
+            Clinical Process Pathway
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            How Beat Headache Works
+          </h2>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">
+            A secure, deidentified baseline evaluation path supporting clinic consultations.
+          </p>
+        </div>
+
+        {/* Timeline Grid layout */}
+        <div className="relative">
+          {/* Horizontal connecting line (hidden on mobile) */}
+          <div className="hidden md:block absolute top-1/2 left-4 right-4 h-0.5 bg-slate-200 dark:bg-slate-800 -translate-y-6 z-0" />
+
+          <div className="relative z-10 grid grid-cols-1 md:grid-cols-4 gap-8">
+            {timelineSteps.map((step, idx) => {
+              const Icon = step.icon;
+              return (
+                <div key={idx} className="group relative flex flex-col items-center md:items-start text-center md:text-left space-y-4">
+                  {/* Circle number tag with pulse/highlight */}
+                  <div className="relative flex items-center justify-center h-12 w-12 rounded-full bg-white dark:bg-slate-900 border-2 border-sky-400 dark:border-cyan-400 shadow-md group-hover:scale-105 transition-transform duration-200 z-10">
+                    <span className="text-xs font-black text-sky-600 dark:text-cyan-400 tracking-wider">{step.step}</span>
+                  </div>
+
+                  {/* Connected visual Step card */}
+                  <div className="w-full p-6 bg-white dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl shadow-xs group-hover:shadow-md transition-shadow duration-200 space-y-3">
+                    <div className="p-2 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-cyan-400 rounded-xl w-fit mx-auto md:mx-0">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-sky-700 dark:group-hover:text-cyan-400 transition-colors duration-200">
+                      {step.title}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                      {step.description}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* B) Trust Cards Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-16 space-y-3">
@@ -265,34 +323,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* D) Refined "How It Works" Section */}
-      <section className="bg-gradient-to-br from-slate-950 via-slate-900 to-sky-950 text-white py-20 border-y border-slate-800 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,#0284c7,transparent_25%)] opacity-30" />
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-16">
-          <div className="text-center max-w-3xl mx-auto space-y-3">
-            <span className="text-cyan-400 text-xs font-bold uppercase tracking-widest">Process Pathway</span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-              How Beat Headache Works
-            </h2>
-            <p className="text-slate-400 text-sm leading-relaxed">
-              A structured sequence to organize baseline data.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {steps.map((item, idx) => (
-              <div key={idx} className="p-6 bg-white/5 dark:bg-slate-900/40 border border-white/10 dark:border-slate-800/80 rounded-2xl space-y-3">
-                <span className="text-3xl font-black text-cyan-400/80 block">{item.step}</span>
-                <h3 className="text-base font-bold text-white">{item.title}</h3>
-                <p className="text-xs text-slate-300 leading-relaxed">{item.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* E) Polished Safety Notice - Official Safety Statement */}
+      {/* D) Safety Notice - Official Safety Statement */}
       <section className="max-w-4xl mx-auto px-4">
         <div className="p-8 bg-amber-50/60 dark:bg-amber-955/20 border border-amber-200/80 dark:border-amber-900/50 rounded-3xl flex flex-col sm:flex-row items-start space-y-4 sm:space-y-0 sm:space-x-6">
           <div className="p-3 bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-250 rounded-2xl shrink-0">
@@ -300,7 +331,7 @@ export default function HomePage() {
           </div>
           <div className="space-y-3">
             <h4 className="text-lg font-bold text-slate-900 dark:text-white">Pediatric Headache Safety Notice</h4>
-            <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-semibold">
+            <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-350 leading-relaxed font-semibold">
               This website does not provide emergency care. Seek urgent medical help if a child has sudden severe headache, confusion, seizure, weakness, vision changes, fever with neck stiffness, head injury, persistent vomiting, or rapidly worsening symptoms.
             </p>
           </div>

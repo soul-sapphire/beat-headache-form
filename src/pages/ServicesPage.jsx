@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import SectionHeader from "../components/SectionHeader";
 import CTA from "../components/CTA";
+import ReportPreviewSection from "../components/ReportPreviewSection";
 
 export default function ServicesPage() {
   const services = [
@@ -116,6 +117,9 @@ export default function ServicesPage() {
           })}
         </div>
       </div>
+
+      {/* Intake Outcomes & Report Previews section */}
+      <ReportPreviewSection />
 
       {/* Safety / Compliance Callout */}
       <section className="bg-slate-900 dark:bg-slate-950 text-white py-16 border-y border-slate-850 dark:border-slate-900">
