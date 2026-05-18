@@ -1,15 +1,29 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 import OpenAI from "openai";
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({
+  path: path.resolve(__dirname, "../.env"),
+});
 
 const app = express();
 const PORT = process.env.PORT || 8787;
 
 app.use(cors());
 app.use(express.json());
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+
+// Safe startup logs
+console.log("[Lumi] OpenAI key:", OPENAI_API_KEY ? "loaded" : "missing");
+console.log("[Lumi] OpenAI model:", OPENAI_MODEL);
 
 const SYSTEM_INSTRUCTIONS = `You are "Lumi", a safe form and report guidance assistant for the Beat Headache website.
 
@@ -31,6 +45,9 @@ Additional Capabilities:
 - Explain Aura: Visual disturbances, sensory changes, or speech difficulties that can precede or accompany headaches.
 `;
 
+// Create OpenAI client only if key exists
+const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
+
 // GET heartbeat
 app.get("/api/health", (req, res) => {
   res.json({ status: "healthy", timestamp: new Date().toISOString() });
@@ -45,56 +62,55 @@ app.post("/api/beat-assistant", async (req, res) => {
   }
 
   // Check if OpenAI API Key is missing
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey || apiKey.trim() === "") {
-    return res.status(503).json({ error: "Lumi is not configured yet." });
+  if (!OPENAI_API_KEY || OPENAI_API_KEY.trim() === "" || !openai) {
+    return res.status(503).json({ error: "Lumi is not configured yet. Add OPENAI_API_KEY to .env." });
   }
 
   try {
-    const openai = new OpenAI({ apiKey });
-    
-    // Build context-aware messages list
-    const messages = [
-      { role: "system", content: SYSTEM_INSTRUCTIONS }
-    ];
+    // Build context-aware prompt for Gemini-to-OpenAI translation
+    let prompt = "";
 
-    // Include page context if provided
     if (pageContext) {
-      messages.push({
-        role: "system",
-        content: `Current page context: ${pageContext}`
-      });
+      prompt += `Current page context:\n${pageContext}\n\n`;
     }
 
-    // Include chat history (limited to last 6 messages)
-    if (Array.isArray(chatHistory)) {
+    if (Array.isArray(chatHistory) && chatHistory.length > 0) {
+      prompt += `Recent Chat History:\n`;
       const limitedHistory = chatHistory.slice(-6);
       for (const msg of limitedHistory) {
         if (msg.role && msg.content) {
-          messages.push({
-            role: msg.role,
-            content: msg.content
-          });
+          const roleLabel = msg.role === "user" ? "User" : "Lumi";
+          prompt += `${roleLabel}: ${msg.content}\n`;
         }
       }
+      prompt += `\n`;
     }
 
-    // Add current user message
-    messages.push({ role: "user", content: message });
+    prompt += `Current User Message:\nUser: ${message}\n\nLumi:`;
 
-    const model = process.env.OPENAI_MODEL || "gpt-5.5-mini";
-
-    const response = await openai.chat.completions.create({
-      model: model,
-      messages: messages,
+    // Call OpenAI Responses API
+    const response = await openai.responses.create({
+      model: OPENAI_MODEL,
+      instructions: SYSTEM_INSTRUCTIONS,
+      input: prompt,
+      max_output_tokens: 350,
+      temperature: 0.3,
     });
 
-    const assistantReply = response.choices[0]?.message?.content || "No response received.";
-    res.json({ reply: assistantReply });
+    // Extract reply safely
+    const reply =
+      response.output_text ||
+      response.output?.flatMap(item => item.content || [])
+        ?.map(content => content.text || "")
+        ?.join("\n")
+        ?.trim() ||
+      "I’m sorry, I could not generate a response right now.";
+
+    res.json({ reply });
 
   } catch (error) {
     console.error("OpenAI API error details:", error);
-    res.status(500).json({ error: "Failed to communicate with AI model. Please try again later." });
+    res.status(500).json({ error: error.message || "Failed to communicate with OpenAI. Please try again later." });
   }
 });
 

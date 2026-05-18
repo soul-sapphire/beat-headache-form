@@ -26,34 +26,43 @@ A professional child headache intake form with forward-reflection logic, clinica
 - **Doctor Clinical Report**: Detailed ICHD-3 criteria reflections and clinical phenotype tables for doctors.
 - **FRESSH Lifestyle Scoring**: Automated lifestyle assessment (Food, Relaxation, Exercise, Sleep, Screen time, Hydration).
 
-## AI Lumi Setup
+## AI Lumi Setup (Hybrid Offline & Online Assistant)
 
 Lumi is an AI-powered form and report helper. Lumi does not diagnose, prescribe, or replace medical care.
 
-This portal includes a secure, local-first AI assistant called **Lumi** that guides parents through the intake form, explains FRESSH lifestyle criteria, red flags, aura symptoms generally, and breaks down report metrics. It follows strict safety boundaries: it does not diagnose, prescribe, recommend medicine, or replace clinical consultation.
+**Lumi is enabled by default in local help mode.** Local mode is completely free, runs instantly in the browser without any API keys or payment, and uses a rich database of clinical, research, and technical responses.
 
-### Local Development Setup:
+### Operating Modes:
 
+#### 1. Free Local Mode (Default)
+To run the website in the standard, zero-cost mode:
 1. **Configure Environment Variables**:
    Copy `.env.example` to `.env` in the project root:
    ```bash
    cp .env.example .env
    ```
-   Open the `.env` file and fill in:
-   - `OPENAI_API_KEY`: Your OpenAI secret key.
-   - `OPENAI_MODEL`: Set to `gpt-5.5-mini` (or your preferred OpenAI model, defaults to `gpt-5.5-mini` if left blank).
-   - `VITE_AI_CHAT_ENABLED`: Set to `true` to display the floating chatbot widget on the site.
-   - `VITE_AI_CHAT_ENDPOINT`: Local chat server API endpoint, defaults to `http://localhost:8787/api/beat-assistant`.
+   Verify that `VITE_AI_CHAT_ENABLED` is `true` and `VITE_AI_CHAT_USE_API` is `false`.
+2. **Start Dev Server**:
+   ```bash
+   npm run dev
+   ```
+   No concurrent background server or API credentials are required.
 
+#### 2. Optional OpenAI API Mode
+If you wish to enable the advanced OpenAI GPT model response engine later:
+1. **Configure API Variables**:
+   Open the `.env` file and set the variables:
+   - `VITE_AI_CHAT_USE_API`: Set to `true` to enable backend API queries.
+   - `OPENAI_API_KEY`: Your OpenAI API key from the OpenAI Platform.
+   - `OPENAI_MODEL`: Set to `gpt-4.1-mini` (or your preferred OpenAI model, defaults to `gpt-4.1-mini` if left blank).
+   - `VITE_AI_CHAT_ENDPOINT`: Local chat server API endpoint, defaults to `http://localhost:8787/api/beat-assistant`.
 2. **Run Full Stack Dev (Concurrently)**:
    Start both the Vite client application and the local Express server simultaneously:
    ```bash
    npm run dev:full
    ```
-   This will host:
-   - Frontend: `http://localhost:5173/`
-   - Express AI Server: `http://localhost:8787/`
 
-### Privacy & Data Safety
-No sensitive patient data or registration details are sent to OpenAI. The frontend filters and sends only the user message, page location, and safe educational queries. The assistant does not store chat logs.
+### Privacy, Billing & Data Safety
+- **Billing Notice**: OpenAI API usage in API mode is subject to standard usage limits and may be billed separately depending on your plan. Do not commit your `.env` file.
+- **Data Protection**: No sensitive patient data or registration details are sent to OpenAI or Lumi. The frontend filters and sends only the user message, page location, and safe educational queries. The assistant does not store chat logs.
 

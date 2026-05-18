@@ -14,7 +14,7 @@ export default function SiteLayout({ children }) {
       <ScrollToTop />
       <ReadingProgressBar />
       <BackToTopButton />
-      <Lumi />
+      {import.meta.env.VITE_AI_CHAT_ENABLED === "true" && <Lumi />}
 
       {/* Accessibility Skip Link */}
       <a
