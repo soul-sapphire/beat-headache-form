@@ -22,7 +22,7 @@ const CHIPS = [
   "When should I seek urgent care?"
 ];
 
-export default function BeatAssistant() {
+export default function Lumi() {
   // Check if AI Chat is enabled from env
   const isEnabled = import.meta.env.VITE_AI_CHAT_ENABLED === "true";
   if (!isEnabled) return null;
@@ -32,7 +32,7 @@ export default function BeatAssistant() {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content: "Hello! I am Beat Assistant. I can help guide you through the patient intake form, FRESSH criteria, and report summaries. How can I help you today?"
+      content: "Hello! I am Lumi. I can help guide you through the patient intake form, FRESSH criteria, and report summaries. How can I help you today?"
     }
   ]);
   const [inputValue, setInputValue] = useState("");
@@ -110,7 +110,7 @@ export default function BeatAssistant() {
         // General fallback message
         setMessages(prev => [
           ...prev,
-          { role: "assistant", content: "Beat Assistant is not available right now. Please try again later." }
+          { role: "assistant", content: "Lumi is not available right now. Please try again later." }
         ]);
       }
     } finally {
@@ -120,20 +120,25 @@ export default function BeatAssistant() {
 
   return (
     <div className="no-print">
-      {/* 1. Floating Toggle Button */}
+      {/* 1. Floating Toggle Button stacked vertically at bottom-24 */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         type="button"
-        className="fixed bottom-6 right-6 z-40 flex items-center space-x-2 px-5 py-3.5 bg-gradient-to-r from-sky-600 via-sky-500 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white rounded-full shadow-lg shadow-sky-500/20 hover:shadow-xl hover:shadow-sky-500/30 hover:-translate-y-0.5 focus-visible:ring-4 focus-visible:ring-sky-300 focus-visible:outline-none transition-all duration-200 cursor-pointer animate-fade-in"
-        aria-label="Toggle Beat AI Assistant"
+        className="fixed bottom-24 right-4 md:right-6 z-50 flex items-center space-x-2 px-5 py-3.5 bg-gradient-to-r from-sky-600 via-sky-500 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white rounded-full shadow-lg shadow-sky-500/20 hover:shadow-xl hover:shadow-sky-500/30 hover:-translate-y-0.5 focus-visible:ring-4 focus-visible:ring-sky-300 focus-visible:outline-none transition-all duration-200 cursor-pointer animate-fade-in"
+        aria-label="Toggle Lumi AI Assistant"
       >
         <MessageSquare className="h-5 w-5 animate-pulse" />
-        <span className="text-xs font-extrabold uppercase tracking-wider">Ask Beat Assistant</span>
+        
+        {/* Desktop Label */}
+        <span className="hidden md:inline text-xs font-extrabold uppercase tracking-wider">Ask Lumi</span>
+        
+        {/* Mobile Label */}
+        <span className="inline md:hidden text-xs font-extrabold uppercase tracking-wider">Lumi</span>
       </button>
 
-      {/* 2. Chat Panel */}
+      {/* 2. Chat Panel positioned at bottom-36 */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-96 max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-8rem)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden z-50 transition-colors duration-300">
+        <div className="fixed bottom-36 right-4 md:right-6 w-[calc(100vw-2rem)] max-w-md h-[460px] max-h-[70vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden z-50 transition-colors duration-300">
           
           {/* Header */}
           <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-sky-950 text-white p-4.5 space-y-2 relative">
@@ -143,25 +148,25 @@ export default function BeatAssistant() {
                   <Activity className="h-4.5 w-4.5 text-cyan-400 animate-pulse" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-extrabold tracking-tight">Beat Assistant</h3>
-                  <p className="text-[10px] text-slate-400 font-semibold">Form and report guidance only</p>
+                  <h3 className="text-sm font-extrabold tracking-tight">Lumi</h3>
+                  <p className="text-[10px] text-slate-400 font-semibold">Your form and report helper</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
                 type="button"
                 className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-slate-300 hover:text-white transition-colors duration-150 cursor-pointer"
-                aria-label="Close Assistant Panel"
+                aria-label="Close Lumi Panel"
               >
                 <X className="h-4.5 w-4.5" />
               </button>
             </div>
 
-            {/* Medical safety disclaimer note */}
+            {/* Safety note warning block */}
             <div className="flex items-start space-x-2 p-2 bg-rose-500/10 border border-rose-500/25 rounded-xl">
               <ShieldAlert className="h-4 w-4 text-rose-450 shrink-0 mt-0.5" />
-              <p className="text-[10px] text-rose-200 leading-normal font-medium">
-                <strong>Disclaimer:</strong> This assistant does not diagnose, prescribe, or replace qualified medical care.
+              <p className="text-[9.5px] text-rose-200 leading-normal font-medium">
+                Lumi can explain the form, reports, FRESSH, red flags, and aura. Lumi does not diagnose, prescribe, or replace medical care.
               </p>
             </div>
           </div>
@@ -201,7 +206,7 @@ export default function BeatAssistant() {
                   onClick={() => handleSendMessage(chip)}
                   disabled={isLoading}
                   type="button"
-                  className="px-2.5 py-1 bg-sky-50/70 dark:bg-sky-950/20 text-sky-700 dark:text-cyan-400 border border-sky-100/50 dark:border-cyan-800/25 rounded-full text-[10px] sm:text-xs font-bold hover:bg-sky-100 dark:hover:bg-cyan-950/40 transition-colors duration-150 cursor-pointer disabled:opacity-50"
+                  className="px-2.5 py-1 bg-sky-50/70 dark:bg-sky-950/20 text-sky-700 dark:text-cyan-400 border border-sky-100/50 dark:border-cyan-800/25 rounded-full text-[10px] sm:text-xs font-bold hover:bg-sky-100 dark:hover:bg-cyan-955/45 transition-colors duration-150 cursor-pointer disabled:opacity-50"
                 >
                   {chip}
                 </button>
@@ -218,7 +223,7 @@ export default function BeatAssistant() {
               onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
               disabled={isLoading}
               className="flex-grow px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-sky-500 dark:focus:border-cyan-400 text-slate-800 dark:text-slate-100 transition-all duration-200 disabled:opacity-60"
-              placeholder="Ask a question about the form..."
+              placeholder="Ask Lumi a question about the form..."
             />
             <button
               onClick={() => handleSendMessage()}

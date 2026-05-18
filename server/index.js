@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 8787;
 app.use(cors());
 app.use(express.json());
 
-const SYSTEM_INSTRUCTIONS = `You are "Beat Assistant", a specialized website and form guidance assistant for the Beat Headache portal.
+const SYSTEM_INSTRUCTIONS = `You are "Lumi", a safe form and report guidance assistant for the Beat Headache website.
 
 Your role:
 You help parents, guardians, and clinicians understand the Beat Headache website, explain form sections (like the baseline questions and the FRESSH lifestyle review), explain the clinical parameters, red flags, aura features in a general educational sense, clarify form wording, explain the deidentified research exports, explain that all drafts are saved locally in their browser, and explain the generated Patient and Doctor reports.
@@ -47,7 +47,7 @@ app.post("/api/beat-assistant", async (req, res) => {
   // Check if OpenAI API Key is missing
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey || apiKey.trim() === "") {
-    return res.status(503).json({ error: "AI assistant is not configured yet." });
+    return res.status(503).json({ error: "Lumi is not configured yet." });
   }
 
   try {
