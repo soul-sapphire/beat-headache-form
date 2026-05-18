@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { FileText, Stethoscope, Download } from "lucide-react";
+import { FileText, Stethoscope, Download, Save, RefreshCw, Trash2, ShieldCheck, Eye, Activity, Database, User as UserIcon, Settings } from "lucide-react";
 import { 
   generatePatientReportPdf, 
   generateDoctorReportPdf, 
@@ -7,6 +7,12 @@ import {
   getRedFlagSummary,
   getFresshInterpretation
 } from "./reportUtils";
+import { downloadDeidentifiedCsv, downloadDeidentifiedJson } from "./exportUtils";
+
+const FORM_VERSION = "BeatHeadache Interview Guide v1 - 2026-05-15";
+const LOCAL_DRAFT_KEY = "beatHeadache.newPatientDraft.v1";
+
+function todayISO() { return new Date().toISOString().slice(0, 10); }
 
 const pageTitles = [
     "Patient, Birth & Family History",
@@ -311,8 +317,6 @@ const randomDobForAge = (age) => {
     const day = String(Math.floor(Math.random() * 28) + 1).padStart(2, "0");
     return `${year}-${month}-${day}`;
 };
-const todayISO = () => new Date().toISOString().split("T")[0];
-
 const firstNames = ["Aarav", "Nethmi", "Kavindu", "Dinuki", "Sanula", "Aanya", "Mineth", "Thevini", "Rahul", "Amaya", "Vihan", "Sayuni", "Adithya", "Imasha"];
 const lastNames = ["Perera", "Silva", "Fernando", "Jayasinghe", "Wijesinghe", "Rathnayake", "Gunasekara", "De Silva", "Herath", "Abeywardena"];
 const parentOccupations = ["Teacher", "Engineer", "Accountant", "Nurse", "Driver", "Business Owner", "Software Developer", "Police Officer", "Bank Officer", "Farmer"];
@@ -579,9 +583,15 @@ function createRandomRealisticTestCase() {
     return base;
 }
 
-const applyForwardReflections = (form) => {
-    // Deep clone to avoid direct mutation
-    const next = JSON.parse(JSON.stringify(form));
+const applyForwardReflections = (input) => {
+    const normalized = ensureFormDefaults(input);
+    const next = {
+        ...normalized,
+        meta: {
+            ...normalized.meta,
+            formVersion: FORM_VERSION,
+        }
+    };
 
     // Helper to add note without duplication
     const addNote = (current, note) => {
@@ -1250,6 +1260,99 @@ function createInitialState() {
         },
         fressh: {},
         final: {},
+        meta: {
+            createdAt: new Date().toISOString(),
+            updatedAt: "",
+            formVersion: FORM_VERSION,
+            reportGeneratedAt: "",
+        },
+        consent: {
+            researchConsent: false,
+            reportConsent: false,
+            deidentifiedExportConsent: false,
+        }
+    };
+}
+
+function ensureFormDefaults(input = {}) {
+    const fresh = createInitialState();
+
+    return {
+        ...fresh,
+        ...input,
+
+        patient: { ...fresh.patient, ...(input.patient || {}) },
+        birth: { ...fresh.birth, ...(input.birth || {}) },
+        perinatal: { ...fresh.perinatal, ...(input.perinatal || {}) },
+        headache: { ...fresh.headache, ...(input.headache || {}) },
+        history: { ...fresh.history, ...(input.history || {}) },
+        medical: { ...fresh.medical, ...(input.medical || {}) },
+        redFlags: {
+            ...fresh.redFlags,
+            ...(input.redFlags || {}),
+            systemic: safeArray(input.redFlags?.systemic),
+            neuro: safeArray(input.redFlags?.neuro),
+            position: safeArray(input.redFlags?.position),
+        },
+        evaluations: { ...fresh.evaluations, ...(input.evaluations || {}) },
+        diagnosis: { ...fresh.diagnosis, ...(input.diagnosis || {}) },
+        examination: {
+            ...fresh.examination,
+            ...(input.examination || {}),
+            tests: safeArray(input.examination?.tests),
+        },
+        fressh: { ...fresh.fressh, ...(input.fressh || {}) },
+        final: { ...fresh.final, ...(input.final || {}) },
+
+        meta: {
+            ...fresh.meta,
+            ...(input.meta || {}),
+            formVersion: input.meta?.formVersion || FORM_VERSION,
+            createdAt: input.meta?.createdAt || new Date().toISOString(),
+        },
+
+        consent: {
+            ...fresh.consent,
+            ...(input.consent || {}),
+        },
+
+        familyRows: safeArray(input.familyRows).length
+            ? safeArray(input.familyRows).map((row) => ({
+                relation: row.relation || "",
+                ...row,
+                issues: safeArray(row.issues),
+            }))
+            : fresh.familyRows,
+
+        clinicPath: { ...fresh.clinicPath, ...(input.clinicPath || {}) },
+        referral: { ...fresh.referral, ...(input.referral || {}) },
+        development: { ...fresh.development, ...(input.development || {}) },
+        impact: { ...fresh.impact, ...(input.impact || {}) },
+        yesterday: { ...fresh.yesterday, ...(input.yesterday || {}) },
+
+        time: {
+            ...fresh.time,
+            ...(input.time || {}),
+            prodromal: {
+                ...fresh.time?.prodromal,
+                ...(input.time?.prodromal || {}),
+                symptoms: safeArray(input.time?.prodromal?.symptoms),
+            },
+            aura: {
+                ...fresh.time?.aura,
+                ...(input.time?.aura || {}),
+                symptoms: safeArray(input.time?.aura?.symptoms),
+            },
+            headache: {
+                ...fresh.time?.headache,
+                ...(input.time?.headache || {}),
+            },
+            postdrome: {
+                ...fresh.time?.postdrome,
+                ...(input.time?.postdrome || {}),
+                symptoms: safeArray(input.time?.postdrome?.symptoms),
+            },
+        },
     };
 }
 
@@ -1441,23 +1544,125 @@ function Grid({ children }) {
 
 export default function BeatHeadacheNewPatientForm() {
     const [page, setPage] = useState(0);
-    const [form, setForm] = useState(createInitialState);
+    const [form, setForm] = useState(() => ensureFormDefaults(createInitialState()));
     const [activeSiblingTab, setActiveSiblingTab] = useState(2); // Sibling 1 is index 2
+    const [viewMode, setViewMode] = useState("doctor"); // "doctor" or "patient"
 
     const update = (section, key, value) => {
-        setForm((prev) => {
-            const next = { ...prev, [section]: { ...prev[section], [key]: value } };
+        setForm((prevRaw) => {
+            const prev = ensureFormDefaults(prevRaw);
+            const next = { 
+                ...prev, 
+                [section]: { ...prev[section], [key]: value },
+                meta: {
+                    ...prev.meta,
+                    updatedAt: new Date().toISOString(),
+                    formVersion: FORM_VERSION,
+                }
+            };
             return applyForwardReflections(next);
         });
     };
 
     const updateFamily = (index, key, value) => {
-        setForm((prev) => {
+        setForm((prevRaw) => {
+            const prev = ensureFormDefaults(prevRaw);
             const rows = [...prev.familyRows];
             rows[index] = { ...rows[index], [key]: value };
-            const next = { ...prev, familyRows: rows };
+            const next = { 
+                ...prev, 
+                familyRows: rows,
+                meta: {
+                    ...prev.meta,
+                    updatedAt: new Date().toISOString(),
+                    formVersion: FORM_VERSION,
+                }
+            };
             return applyForwardReflections(next);
         });
+    };
+
+    const saveDraft = () => {
+        const payload = {
+            form,
+            savedAt: new Date().toISOString()
+        };
+        localStorage.setItem(LOCAL_DRAFT_KEY, JSON.stringify(payload));
+        alert("Draft saved on this device.");
+    };
+
+    const loadDraft = () => {
+        const saved = localStorage.getItem(LOCAL_DRAFT_KEY);
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                const loadedForm = parsed.form || parsed;
+                const normalized = ensureFormDefaults(loadedForm);
+                setForm(applyForwardReflections(normalized));
+                alert("Draft loaded.");
+            } catch (e) {
+                alert("Failed to load draft.");
+            }
+        } else {
+            alert("No saved draft found on this device.");
+        }
+    };
+
+    const clearDraft = () => {
+        if (confirm("Are you sure you want to clear the saved draft?")) {
+            localStorage.removeItem(LOCAL_DRAFT_KEY);
+            alert("Saved draft cleared.");
+        }
+    };
+
+    const validateForReports = (f) => {
+        const missing = [];
+        if (!f.patient.firstName && !f.patient.lastName && !f.patient.registrationCode) missing.push("Patient identification (Name/Code)");
+        if (!f.patient.age) missing.push("Patient Age");
+        if (!f.patient.gender) missing.push("Patient Gender");
+        if (f.headache.confirmed === "Yes") {
+            if ((f.history.location || []).length === 0) missing.push("Headache location");
+        }
+        if (!f.time.headache.duration && !f.history.episodeDuration) missing.push("Headache episode duration");
+        if (!f.time.headache.severity) missing.push("Pain severity");
+        
+        const hasFreq = toNumber(f.history.headacheDaysLastFourWeeks) > 0 || 
+                        toNumber(f.history.perMonth) > 0 || 
+                        toNumber(f.history.perWeek) > 0 || 
+                        toNumber(f.history.perDay) > 0;
+        if (!hasFreq) missing.push("Headache frequency (days/month)");
+        
+        if (!f.consent.reportConsent) missing.push("Report use consent");
+
+        return {
+            isValid: missing.length === 0,
+            missing
+        };
+    };
+
+    const handleReportDownload = (type) => {
+        const validation = validateForReports(form);
+        if (!validation.isValid) {
+            alert("Please complete required fields before generating reports:\n\n- " + validation.missing.join("\n- "));
+            return;
+        }
+
+        const safeForm = ensureFormDefaults(form);
+
+        const formForReport = {
+            ...safeForm,
+            meta: {
+                ...safeForm.meta,
+                reportGeneratedAt: new Date().toISOString(),
+                formVersion: FORM_VERSION,
+            },
+        };
+
+        if (type === "patient") {
+            generatePatientReportPdf(formForReport, fresshTotal);
+        } else {
+            generateDoctorReportPdf(formForReport, fresshTotal);
+        }
     };
 
     const fresshTotal = useMemo(
@@ -2081,17 +2286,144 @@ export default function BeatHeadacheNewPatientForm() {
                             </p>
                         </div>
 
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 space-y-6">
+                            <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
+                                <ShieldCheck className="h-6 w-6 text-sky-600" />
+                                <h3 className="text-lg font-bold text-slate-900">Consent & Report Use</h3>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <label className="flex gap-4 cursor-pointer p-4 bg-white rounded-xl border border-slate-200 hover:border-sky-300 transition shadow-sm">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={form.consent.reportConsent}
+                                        onChange={(e) => update("consent", "reportConsent", e.target.checked)}
+                                        className="h-5 w-5 mt-1 accent-sky-600"
+                                    />
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-bold text-slate-800">Confirm Report Generation</p>
+                                        <p className="text-xs text-slate-500">I confirm that this form may be used to generate a report for doctor review.</p>
+                                    </div>
+                                </label>
+
+                                <label className="flex gap-4 cursor-pointer p-4 bg-white rounded-xl border border-slate-200 hover:border-sky-300 transition shadow-sm">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={form.consent.researchConsent}
+                                        onChange={(e) => update("consent", "researchConsent", e.target.checked)}
+                                        className="h-5 w-5 mt-1 accent-sky-600"
+                                    />
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-bold text-slate-800">Understand Disclaimer</p>
+                                        <p className="text-xs text-slate-500">I understand this generated report is not a final diagnosis or prescription.</p>
+                                    </div>
+                                </label>
+
+                                <label className="flex gap-4 cursor-pointer p-4 bg-white rounded-xl border border-slate-200 hover:border-sky-300 transition shadow-sm">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={form.consent.deidentifiedExportConsent}
+                                        onChange={(e) => update("consent", "deidentifiedExportConsent", e.target.checked)}
+                                        className="h-5 w-5 mt-1 accent-sky-600"
+                                    />
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-bold text-slate-800">Allow Deidentified Research Export</p>
+                                        <p className="text-xs text-slate-500">I allow a deidentified research export to be generated from this form (personal IDs removed).</p>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Card title="Report Preview" description="Snapshot of generated summaries.">
+                                <div className="space-y-4">
+                                    {(() => {
+                                        try {
+                                            const summary = getSuggestedDiagnosisSummary(form);
+                                            const redFlags = getRedFlagSummary(form);
+                                            const validation = validateForReports(form);
+                                            return (
+                                                <>
+                                                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Suggested Category</span>
+                                                        <span className="text-sm font-bold text-sky-700">{summary.likelyType}</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Red Flags</span>
+                                                        <span className={`text-sm font-bold ${redFlags.length > 0 ? "text-rose-600" : "text-emerald-600"}`}>{redFlags.length} detected</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">FRESSH Score</span>
+                                                        <span className="text-sm font-bold text-indigo-700">{fresshTotal} / 60</span>
+                                                    </div>
+                                                    <div className="mt-2 pt-4 border-t border-slate-100">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Readiness</p>
+                                                        {validation.isValid ? (
+                                                            <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold">
+                                                                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                                Ready to generate reports
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2 text-rose-500 text-xs font-bold">
+                                                                <div className="h-2 w-2 rounded-full bg-rose-500"></div>
+                                                                Needs {validation.missing.length} required fields
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </>
+                                            );
+                                        } catch (e) {
+                                            return <p className="text-xs text-rose-500 font-bold">Preview unavailable: Check form inputs.</p>;
+                                        }
+                                    })()}
+                                </div>
+                            </Card>
+
+                            <Card title="Export Tools" description="Data export for clinical research.">
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (!form.consent?.deidentifiedExportConsent) {
+                                                    alert("Please confirm deidentified research export consent first.");
+                                                    return;
+                                                }
+                                                const safeForm = ensureFormDefaults(form);
+                                                downloadDeidentifiedCsv(safeForm, fresshTotal);
+                                            }}
+                                            className="flex items-center justify-center gap-3 rounded-xl bg-slate-100 border-2 border-slate-200 px-4 py-3 text-xs font-bold text-slate-700 transition hover:bg-slate-200 disabled:opacity-40"
+                                        >
+                                            <Database className="h-4 w-4" />
+                                            Export Deidentified CSV
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (!form.consent?.deidentifiedExportConsent) {
+                                                    alert("Please confirm deidentified research export consent first.");
+                                                    return;
+                                                }
+                                                const safeForm = ensureFormDefaults(form);
+                                                downloadDeidentifiedJson(safeForm, fresshTotal);
+                                            }}
+                                            className="flex items-center justify-center gap-3 rounded-xl bg-slate-100 border-2 border-slate-200 px-4 py-3 text-xs font-bold text-slate-700 transition hover:bg-slate-200 disabled:opacity-40"
+                                        >
+                                            <FileText className="h-4 w-4" />
+                                            Export Deidentified JSON
+                                        </button>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 italic text-center">
+                                        Exports remove names, phone numbers, and emails.
+                                    </p>
+                                </div>
+                            </Card>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <button
                                 type="button"
-                                onClick={() => {
-                                    try {
-                                        generatePatientReportPdf(form, fresshTotal);
-                                    } catch (error) {
-                                        console.error("Patient report generation failed:", error);
-                                        alert("Patient report generation failed. Check console.");
-                                    }
-                                }}
+                                onClick={() => handleReportDownload("patient")}
                                 className="flex items-center justify-center gap-3 rounded-2xl bg-emerald-50 border-2 border-emerald-100 px-6 py-4 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100 hover:border-emerald-200"
                             >
                                 <Download className="h-5 w-5" />
@@ -2099,14 +2431,7 @@ export default function BeatHeadacheNewPatientForm() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => {
-                                    try {
-                                        generateDoctorReportPdf(form, fresshTotal);
-                                    } catch (error) {
-                                        console.error("Doctor report generation failed:", error);
-                                        alert("Doctor report generation failed. Check console.");
-                                    }
-                                }}
+                                onClick={() => handleReportDownload("doctor")}
                                 className="flex items-center justify-center gap-3 rounded-2xl bg-indigo-50 border-2 border-indigo-100 px-6 py-4 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100 hover:border-indigo-200"
                             >
                                 <Stethoscope className="h-5 w-5" />
@@ -2132,12 +2457,42 @@ export default function BeatHeadacheNewPatientForm() {
     return (
         <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 md:px-8">
             <div className="mx-auto max-w-6xl space-y-6">
-                <header className="rounded-3xl bg-gradient-to-br from-sky-700 to-cyan-500 p-6 text-white shadow-lg md:p-8">
-                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-sky-100">Beat Headache</p>
-                    <h1 className="mt-2 text-3xl font-black md:text-5xl">New Patient Form</h1>
-                    <p className="mt-3 max-w-3xl text-sm leading-6 text-sky-50 md:text-base">
-                        A React front-end version of the child headache intake form, organized as a 7-page wizard for a cleaner patient and doctor workflow.
-                    </p>
+                <header className="rounded-3xl bg-gradient-to-br from-sky-700 to-cyan-500 p-6 text-white shadow-lg md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div>
+                        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-sky-100">Beat Headache</p>
+                        <h1 className="mt-2 text-3xl font-black md:text-5xl">New Patient Form</h1>
+                        <p className="mt-3 max-w-xl text-sm leading-6 text-sky-50 md:text-base">
+                            A React front-end version of the child headache intake form, organized as a 7-page wizard for a cleaner patient and doctor workflow.
+                        </p>
+                    </div>
+                    
+                    <div className="flex flex-col gap-3 w-full md:w-auto">
+                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-2 border border-white/20 flex gap-1">
+                            <button 
+                                onClick={() => setViewMode("doctor")}
+                                className={`flex-1 md:flex-none flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${viewMode === "doctor" ? "bg-white text-sky-700 shadow-md" : "text-white hover:bg-white/10"}`}
+                            >
+                                <Stethoscope className="h-4 w-4" />
+                                Doctor Mode
+                            </button>
+                            <button 
+                                onClick={() => setViewMode("patient")}
+                                className={`flex-1 md:flex-none flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${viewMode === "patient" ? "bg-white text-sky-700 shadow-md" : "text-white hover:bg-white/10"}`}
+                            >
+                                <UserIcon className="h-4 w-4" />
+                                Patient Mode
+                            </button>
+                        </div>
+                        
+                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/20">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-sky-100 mb-2 px-1">Draft Tools</p>
+                            <div className="flex gap-2">
+                                <button onClick={saveDraft} title="Save Draft" className="p-3 bg-white/20 hover:bg-white/30 rounded-xl transition text-white"><Save className="h-4 w-4" /></button>
+                                <button onClick={loadDraft} title="Load Draft" className="p-3 bg-white/20 hover:bg-white/30 rounded-xl transition text-white"><RefreshCw className="h-4 w-4" /></button>
+                                <button onClick={clearDraft} title="Clear Draft" className="p-3 bg-white/20 hover:bg-white/30 rounded-xl transition text-white"><Trash2 className="h-4 w-4" /></button>
+                            </div>
+                        </div>
+                    </div>
                 </header>
 
                 <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 shadow-sm">
@@ -2168,94 +2523,127 @@ export default function BeatHeadacheNewPatientForm() {
 
                 <PageNavigation page={page} totalPages={pageTitles.length} setPage={setPage} titles={pageTitles} />
 
+                {pageTitles[page] === "ICDH-3 Criteria Reflection" && viewMode === "patient" && (
+                    <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-6 py-4 text-sm text-indigo-800 shadow-sm flex items-center gap-4">
+                        <Settings className="h-6 w-6 text-indigo-600" />
+                        <p><strong>Note for Parents:</strong> This section contains technical clinical criteria used by doctors for formal diagnosis. You can review it, but it is primarily intended for your physician.</p>
+                    </div>
+                )}
+
                 {pages[page]()}
 
                 <PageNavigation page={page} totalPages={pageTitles.length} setPage={setPage} titles={pageTitles} />
 
-                {/* Development Debug Panel */}
-                <div className="mt-12 rounded-3xl border border-slate-200 bg-slate-900 p-6 text-white shadow-xl">
-                    <div className="mb-4 flex items-center justify-between">
-                        <h3 className="text-lg font-bold text-sky-400">Debug Reflection Panel</h3>
-                        <div className="flex flex-col gap-2">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const sample = createRandomRealisticTestCase();
-                                    const reflected = applyForwardReflections(sample);
-                                    setForm(reflected);
-                                    setPage(0);
-                                    alert("Random realistic test case loaded. Check later pages/debug panel.");
-                                }}
-                                className="rounded-xl bg-sky-600 px-4 py-3 text-xs font-bold transition hover:bg-sky-500 shadow-lg shadow-sky-900/20"
-                            >
-                                Fill Realistic Test Case
-                            </button>
-                            <p className="text-[10px] text-center text-slate-400 font-medium">Generates a different child headache case each time.</p>
+                <div className="mt-8 pt-8 border-t border-slate-200 text-slate-400">
+                    <div className="flex flex-wrap justify-between items-center gap-6">
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-black uppercase tracking-widest">Audit Trail & Version</p>
+                            <p className="text-xs font-bold">{FORM_VERSION}</p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                const sample = createInitialState();
-                                sample.patient.firstName = "Smoke";
-                                sample.patient.lastName = "Test";
-                                sample.patient.email = "smoke@testmail.com";
-                                sample.patient.whatsapp = "0711223344";
-                                sample.patient.age = 4;
-                                sample.headache.exclude = ["TM joint pain"];
-                                
-                                // Strong T-Time case
-                                sample.time.prodromal.hasProdromal = "Yes";
-                                sample.time.prodromal.symptoms = ["Fatigue", "Yawning"];
-                                
-                                sample.time.aura.hasAura = "Yes";
-                                sample.time.aura.symptoms = ["Visual"];
-                                sample.time.aura.duration = "5–60 minutes";
-                                sample.time.aura.side = "Left";
-                                sample.time.aura.timing = "Before headache";
-                                sample.time.aura.gradualSpread = "Yes";
-                                
-                                sample.time.headache.duration = "More than 4 hours";
-                                sample.time.headache.severity = "Very bad";
-                                
-                                sample.time.postdrome.hasPostdrome = "Yes";
-                                sample.time.postdrome.symptoms = ["Tiredness", "Sleepiness"];
-
-                                sample.history.painNature = ["Thunder clapping"];
-                                sample.history.associated = ["Vomiting", "Vision issues/Diplopia", "Walking difficulty"];
-                                sample.history.aggravating = ["Activity"];
-                                
-                                const reflected = applyForwardReflections(sample);
-                                setForm(reflected);
-                                console.log("Smoke Test Result:", reflected);
-                                alert("Smoke test completed. Check console/debug panel.");
-                            }}
-                            className="rounded-xl bg-slate-700 px-4 py-2 text-xs font-bold transition hover:bg-slate-600"
-                        >
-                            Run Reflection Smoke Test
-                        </button>
-                    </div>
-                    <div className="grid grid-cols-1 gap-6 text-xs md:grid-cols-3">
-                        <div className="space-y-2">
-                            <p><span className="font-bold text-slate-400">Current Page:</span> {page + 1}</p>
-                            <p><span className="font-bold text-slate-400">Prodromal:</span> {form.time?.prodromal?.hasProdromal} ({JSON.stringify(safeArray(form.time?.prodromal?.symptoms))})</p>
-                            <p><span className="font-bold text-slate-400">Aura:</span> {form.time?.aura?.hasAura} ({JSON.stringify(safeArray(form.time?.aura?.symptoms))})</p>
-                            <p><span className="font-bold text-slate-400">Aura Details:</span> {form.time?.aura?.duration} | {form.time?.aura?.side} | {form.time?.aura?.timing} | Spread: {form.time?.aura?.gradualSpread}</p>
-                            <p><span className="font-bold text-slate-400">Headache:</span> {form.time?.headache?.duration} | <span className="text-sky-300">{form.time?.headache?.severity}</span></p>
-                            <p><span className="font-bold text-slate-400">Postdrome:</span> {form.time?.postdrome?.hasPostdrome} ({JSON.stringify(safeArray(form.time?.postdrome?.symptoms))})</p>
-                        </div>
-                        <div className="space-y-2">
-                            <p><span className="font-bold text-slate-400">Aura Types:</span> {JSON.stringify(safeArray(form.diagnosis?.auraTypes))}</p>
-                            <p><span className="font-bold text-slate-400">Aura Char:</span> {JSON.stringify(safeArray(form.diagnosis?.auraCharacteristics))}</p>
-                            <p><span className="font-bold text-slate-400">Migraine Char:</span> {JSON.stringify(safeArray(form.diagnosis?.migraineNoAuraCharacteristics))}</p>
-                            <p><span className="font-bold text-slate-400">Tension Char:</span> {JSON.stringify(safeArray(form.diagnosis?.tensionCharacteristics))}</p>
-                            <p><span className="font-bold text-slate-400">Cluster Symptoms:</span> {JSON.stringify(safeArray(form.diagnosis?.clusterSymptoms))}</p>
-                        </div>
-                        <div className="space-y-2">
-                            <p><span className="font-bold text-slate-400">Final Diagnosis:</span> <span className="text-sky-200 whitespace-pre-wrap">{form.final?.diagnosis || ""}</span></p>
-                            <p><span className="font-bold text-slate-400">Final Med Plan:</span> <span className="text-sky-200 whitespace-pre-wrap">{form.final?.medicationPlan || ""}</span></p>
+                        <div className="flex gap-8">
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-black uppercase tracking-widest">Form Created</p>
+                                <p className="text-xs">{form.meta?.createdAt ? new Date(form.meta.createdAt).toLocaleString() : "Not available"}</p>
+                            </div>
+                            {form.meta?.updatedAt && (
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black uppercase tracking-widest">Last Edited</p>
+                                    <p className="text-xs">{new Date(form.meta.updatedAt).toLocaleString()}</p>
+                                </div>
+                            )}
+                            <div className="space-y-1 text-right">
+                                <p className="text-[10px] font-black uppercase tracking-widest">View Mode</p>
+                                <p className="text-xs font-bold uppercase">{viewMode}</p>
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                {import.meta.env.DEV && (
+                    <div className="mt-12 rounded-3xl border border-slate-200 bg-slate-900 p-6 text-white shadow-xl">
+                        <div className="mb-4 flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-sky-400">Debug Reflection Panel</h3>
+                            <div className="flex flex-col gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const sample = createRandomRealisticTestCase();
+                                        const reflected = applyForwardReflections(sample);
+                                        setForm(reflected);
+                                        setPage(0);
+                                        alert("Random realistic test case loaded. Check later pages/debug panel.");
+                                    }}
+                                    className="rounded-xl bg-sky-600 px-4 py-3 text-xs font-bold transition hover:bg-sky-500 shadow-lg shadow-sky-900/20"
+                                >
+                                    Fill Realistic Test Case
+                                </button>
+                                <p className="text-[10px] text-center text-slate-400 font-medium">Generates a different child headache case each time.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const sample = createInitialState();
+                                    sample.patient.firstName = "Smoke";
+                                    sample.patient.lastName = "Test";
+                                    sample.patient.email = "smoke@testmail.com";
+                                    sample.patient.whatsapp = "0711223344";
+                                    sample.patient.age = 4;
+                                    sample.headache.exclude = ["TM joint pain"];
+                                    
+                                    // Strong T-Time case
+                                    sample.time.prodromal.hasProdromal = "Yes";
+                                    sample.time.prodromal.symptoms = ["Fatigue", "Yawning"];
+                                    
+                                    sample.time.aura.hasAura = "Yes";
+                                    sample.time.aura.symptoms = ["Visual"];
+                                    sample.time.aura.duration = "5–60 minutes";
+                                    sample.time.aura.side = "Left";
+                                    sample.time.aura.timing = "Before headache";
+                                    sample.time.aura.gradualSpread = "Yes";
+                                    
+                                    sample.time.headache.duration = "More than 4 hours";
+                                    sample.time.headache.severity = "Very bad";
+                                    
+                                    sample.time.postdrome.hasPostdrome = "Yes";
+                                    sample.time.postdrome.symptoms = ["Tiredness", "Sleepiness"];
+
+                                    sample.history.painNature = ["Thunder clapping"];
+                                    sample.history.associated = ["Vomiting", "Vision issues/Diplopia", "Walking difficulty"];
+                                    sample.history.aggravating = ["Activity"];
+                                    
+                                    const reflected = applyForwardReflections(sample);
+                                    setForm(reflected);
+                                    console.log("Smoke Test Result:", reflected);
+                                    alert("Smoke test completed. Check console/debug panel.");
+                                }}
+                                className="rounded-xl bg-slate-700 px-4 py-2 text-xs font-bold transition hover:bg-slate-600"
+                            >
+                                Run Reflection Smoke Test
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 gap-6 text-xs md:grid-cols-3">
+                            <div className="space-y-2">
+                                <p><span className="font-bold text-slate-400">Current Page:</span> {page + 1}</p>
+                                <p><span className="font-bold text-slate-400">Prodromal:</span> {form.time?.prodromal?.hasProdromal} ({JSON.stringify(safeArray(form.time?.prodromal?.symptoms))})</p>
+                                <p><span className="font-bold text-slate-400">Aura:</span> {form.time?.aura?.hasAura} ({JSON.stringify(safeArray(form.time?.aura?.symptoms))})</p>
+                                <p><span className="font-bold text-slate-400">Aura Details:</span> {form.time?.aura?.duration} | {form.time?.aura?.side} | {form.time?.aura?.timing} | Spread: {form.time?.aura?.gradualSpread}</p>
+                                <p><span className="font-bold text-slate-400">Headache:</span> {form.time?.headache?.duration} | <span className="text-sky-300">{form.time?.headache?.severity}</span></p>
+                                <p><span className="font-bold text-slate-400">Postdrome:</span> {form.time?.postdrome?.hasPostdrome} ({JSON.stringify(safeArray(form.time?.postdrome?.symptoms))})</p>
+                            </div>
+                            <div className="space-y-2">
+                                <p><span className="font-bold text-slate-400">Aura Types:</span> {JSON.stringify(safeArray(form.diagnosis?.auraTypes))}</p>
+                                <p><span className="font-bold text-slate-400">Aura Char:</span> {JSON.stringify(safeArray(form.diagnosis?.auraCharacteristics))}</p>
+                                <p><span className="font-bold text-slate-400">Migraine Char:</span> {JSON.stringify(safeArray(form.diagnosis?.migraineNoAuraCharacteristics))}</p>
+                                <p><span className="font-bold text-slate-400">Tension Char:</span> {JSON.stringify(safeArray(form.diagnosis?.tensionCharacteristics))}</p>
+                                <p><span className="font-bold text-slate-400">Cluster Symptoms:</span> {JSON.stringify(safeArray(form.diagnosis?.clusterSymptoms))}</p>
+                            </div>
+                            <div className="space-y-2">
+                                <p><span className="font-bold text-slate-400">Final Diagnosis:</span> <span className="text-sky-200 whitespace-pre-wrap">{form.final?.diagnosis || ""}</span></p>
+                                <p><span className="font-bold text-slate-400">Final Med Plan:</span> <span className="text-sky-200 whitespace-pre-wrap">{form.final?.medicationPlan || ""}</span></p>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </main>
     );
