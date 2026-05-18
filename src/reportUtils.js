@@ -257,7 +257,8 @@ export function generatePatientReportPdf(form, fresshTotal) {
         ["Registration Code", sanitizeText(p.registrationCode)],
         ["Contact", sanitizeText(p.phone)],
         ["WhatsApp / Email", `${sanitizeText(p.whatsapp)} / ${sanitizeText(p.email)}`],
-        ["Report Date", formatDate(null)]
+        ["Report Date", formatDate(form.meta?.reportGeneratedAt)],
+        ["Form Version", sanitizeText(form.meta?.formVersion)]
     ]);
 
     // 2. Why This Report Was Created
@@ -360,7 +361,8 @@ export function generateDoctorReportPdf(form, fresshTotal) {
         ["Registration Code", sanitizeText(p.registrationCode)],
         ["Phone / WhatsApp", `${sanitizeText(p.phone)} / ${sanitizeText(p.whatsapp)}`],
         ["Email", sanitizeText(p.email)],
-        ["Report Date", formatDate(null)]
+        ["Report Date", formatDate(form.meta?.reportGeneratedAt)],
+        ["Form Version", sanitizeText(form.meta?.formVersion)]
     ]);
 
     // 2. Referral / Path to Clinic
