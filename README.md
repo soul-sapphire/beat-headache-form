@@ -26,9 +26,11 @@ A professional child headache intake form with forward-reflection logic, clinica
 - **Doctor Clinical Report**: Detailed ICHD-3 criteria reflections and clinical phenotype tables for doctors.
 - **FRESSH Lifestyle Scoring**: Automated lifestyle assessment (Food, Relaxation, Exercise, Sleep, Screen time, Hydration).
 
-## AI Beat Assistant Setup
+## AI Lumi Setup
 
-This portal includes a secure, local-first AI assistant called **Beat Assistant** that guides parents through the intake form, explains FRESSH lifestyle criteria, red flags, aura symptoms generally, and breaks down report metrics. It follows strict safety boundaries: it does not diagnose, prescribe, recommend medicine, or replace clinical consultation.
+Lumi is an AI-powered form and report helper. Lumi does not diagnose, prescribe, or replace medical care.
+
+This portal includes a secure, local-first AI assistant called **Lumi** that guides parents through the intake form, explains FRESSH lifestyle criteria, red flags, aura symptoms generally, and breaks down report metrics. It follows strict safety boundaries: it does not diagnose, prescribe, recommend medicine, or replace clinical consultation.
 
 ### Local Development Setup:
 
