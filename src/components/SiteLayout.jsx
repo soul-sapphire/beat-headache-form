@@ -4,6 +4,7 @@ import Footer from "./Footer";
 import ReadingProgressBar from "./ReadingProgressBar";
 import BackToTopButton from "./BackToTopButton";
 import ScrollToTop from "./ScrollToTop";
+import BeatAssistant from "./BeatAssistant";
 
 export default function SiteLayout({ children }) {
   return (
@@ -13,6 +14,7 @@ export default function SiteLayout({ children }) {
       <ScrollToTop />
       <ReadingProgressBar />
       <BackToTopButton />
+      <BeatAssistant />
 
       {/* Accessibility Skip Link */}
       <a
