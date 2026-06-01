@@ -32,7 +32,13 @@ service cloud.firestore {
       return isAdmin() || isApprovedDoctor();
     }
 
-    function patientLinked(patientCode) {
+    // Use resource.data for patient collection reads/lists (required for secure queries).
+    function isLinkedToPatientResource() {
+      return request.auth.uid in resource.data.linkedDoctorUids;
+    }
+
+    // Parent lookup for subcollections under patients/{patientCode}/...
+    function isLinkedToPatientId(patientCode) {
       return request.auth.uid in get(/databases/$(database)/documents/patients/$(patientCode)).data.linkedDoctorUids;
     }
 
@@ -51,15 +57,23 @@ service cloud.firestore {
     }
 
     // patients/{patientCode}
+    // TODO(production): add doctorPatients/{doctorUid}/patients/{patientCode} index for stricter list rules.
     match /patients/{patientCode} {
-      allow read: if isAdmin() || (isApprovedDoctor() && patientLinked(patientCode));
+      // Single-document read (exact patient ID)
+      allow get: if isAdmin() || (isApprovedDoctor() && isLinkedToPatientResource());
+
+      // Collection queries (autocomplete prefix / linkedDoctorUids array-contains)
+      // Doctor queries MUST use: where("linkedDoctorUids", "array-contains", request.auth.uid)
+      // Admin may list/range query all patients.
+      allow list: if isAdmin() || (isApprovedDoctor() && isLinkedToPatientResource());
+
       allow create: if isApprovedDoctorOrAdmin();
-      allow update: if isAdmin() || (isApprovedDoctor() && patientLinked(patientCode));
+      allow update: if isAdmin() || (isApprovedDoctor() && isLinkedToPatientResource());
 
       match /encounters/{encounterId} {
-        allow read: if isAdmin() || (isApprovedDoctor() && patientLinked(patientCode));
+        allow read: if isAdmin() || (isApprovedDoctor() && isLinkedToPatientId(patientCode));
         allow create: if isApprovedDoctorOrAdmin();
-        allow update: if isAdmin() || (isApprovedDoctor() && patientLinked(patientCode));
+        allow update: if isAdmin() || (isApprovedDoctor() && isLinkedToPatientId(patientCode));
       }
 
       match /accessLogs/{logId} {
@@ -75,7 +89,6 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Anchor doc for research rows subcollection
     match /researchDataset/data {
       allow read: if isAdmin();
       allow write: if false;

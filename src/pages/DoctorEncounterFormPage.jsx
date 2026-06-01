@@ -6,6 +6,46 @@ import BeatHeadacheNewPatientForm from "../BeatHeadacheNewPatientForm";
 import { getSuggestedDiagnosisSummary, getRedFlagSummary } from "../reportUtils";
 import { AlertCircle, ChevronLeft, Loader2 } from "lucide-react";
 
+function normalizeSummaryList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === "string") return value.trim() ? [value.trim()] : [];
+  if (value && typeof value === "object") {
+    return Object.values(value)
+      .flat()
+      .filter(Boolean)
+      .map((item) => String(item));
+  }
+  return [];
+}
+
+function formatRedFlagsSummary(form) {
+  const items = normalizeSummaryList(getRedFlagSummary(form)).map((f) =>
+    typeof f === "object" && f?.text != null ? String(f.text) : String(f)
+  ).filter(Boolean);
+  return items.length ? items.join("; ") : "None";
+}
+
+function formatDiagnosisReviewSummary(form) {
+  const raw = getSuggestedDiagnosisSummary(form);
+  if (raw && typeof raw === "object" && !Array.isArray(raw) && raw.likelyType) {
+    return String(raw.likelyType);
+  }
+  const items = normalizeSummaryList(raw).map((d) =>
+    typeof d === "object" && d?.name != null ? String(d.name) : String(d)
+  ).filter(Boolean);
+  return items.length ? items.join(", ") : "No structured diagnosis";
+}
+
+function buildEncounterData(form, fresshTotal) {
+  return {
+    patientSummaryReport: String(form?.final?.diagnosis ?? ""),
+    doctorClinicalReport: String(form?.final?.medicationPlan ?? ""),
+    redFlagsSummary: formatRedFlagsSummary(form),
+    diagnosisReviewSummary: formatDiagnosisReviewSummary(form),
+    fresshScore: Number(fresshTotal) || 0,
+  };
+}
+
 export default function DoctorEncounterFormPage() {
   const { patientCode } = useParams();
   const { userData } = useAuth();
@@ -46,14 +86,7 @@ export default function DoctorEncounterFormPage() {
 
   const handleSaveEncounter = async (form, fresshTotal) => {
     try {
-      // Build summary fields instead of full raw data
-      const encounterData = {
-        patientSummaryReport: form.final?.diagnosis || "",
-        doctorClinicalReport: form.final?.medicationPlan || "",
-        redFlagsSummary: getRedFlagSummary(form).map(f => f.text).join("; ") || "None",
-        diagnosisReviewSummary: getSuggestedDiagnosisSummary(form).map(d => d.name).join(", ") || "No structured diagnosis",
-        fresshScore: fresshTotal || 0,
-      };
+      const encounterData = buildEncounterData(form, fresshTotal);
 
       await saveEncounterReport(
         patientCode,
@@ -66,8 +99,13 @@ export default function DoctorEncounterFormPage() {
       alert("Encounter saved successfully to patient record.");
       navigate("/doctor/patients");
     } catch (err) {
-      console.error("Error saving encounter:", err);
-      alert("Failed to save encounter. Check console for details.");
+      console.error("Encounter save failed:", err);
+      const detail = err?.message ? `\n\n${err.message}` : "";
+      alert(
+        import.meta.env.DEV
+          ? `Failed to save encounter.${detail}`
+          : "Failed to save encounter. Check console for details."
+      );
     }
   };
 
