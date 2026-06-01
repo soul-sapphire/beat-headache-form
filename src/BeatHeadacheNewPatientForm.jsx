@@ -1542,9 +1542,20 @@ function Grid({ children }) {
     return <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{children}</div>;
 }
 
-export default function BeatHeadacheNewPatientForm() {
+export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncounter }) {
     const [page, setPage] = useState(0);
-    const [form, setForm] = useState(() => ensureFormDefaults(createInitialState()));
+    const [form, setForm] = useState(() => {
+        const init = createInitialState();
+        if (patientContext) {
+            init.patient.firstName = patientContext.firstName || "";
+            init.patient.lastName = patientContext.lastName || "";
+            init.patient.registrationCode = patientContext.patientCode || "";
+            if (patientContext.birthYear) {
+                init.patient.age = (new Date().getFullYear() - parseInt(patientContext.birthYear)).toString();
+            }
+        }
+        return ensureFormDefaults(init);
+    });
     const [activeSiblingTab, setActiveSiblingTab] = useState(2); // Sibling 1 is index 2
     const [viewMode, setViewMode] = useState("doctor"); // "doctor" or "patient"
 
@@ -2441,10 +2452,26 @@ export default function BeatHeadacheNewPatientForm() {
 
                         <button
                             type="button"
-                            onClick={() => console.log("New Patient Form Data", form)}
+                            onClick={() => {
+                                console.log("New Patient Form Data", form);
+                                if (onSaveEncounter) {
+                                    const safeForm = ensureFormDefaults(form);
+                                    const formForReport = {
+                                        ...safeForm,
+                                        meta: {
+                                            ...safeForm.meta,
+                                            reportGeneratedAt: new Date().toISOString(),
+                                            formVersion: FORM_VERSION,
+                                        },
+                                    };
+                                    onSaveEncounter(formForReport, fresshTotal);
+                                } else {
+                                    alert("Form submitted locally.");
+                                }
+                            }}
                             className="w-full rounded-2xl bg-sky-600 px-6 py-4 text-sm font-bold text-white shadow-lg shadow-sky-200 transition hover:bg-sky-700"
                         >
-                            Submit Form
+                            {onSaveEncounter ? "Save Encounter to Patient Record" : "Submit Form"}
                         </button>
                     </div>
                 </Card>
