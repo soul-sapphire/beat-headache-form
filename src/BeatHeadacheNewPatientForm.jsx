@@ -583,6 +583,71 @@ function createRandomRealisticTestCase() {
     return base;
 }
 
+/** Identity fields kept when filling test data in a doctor encounter (patientContext set). */
+const PATIENT_IDENTITY_FIELD_KEYS = [
+    "firstName",
+    "lastName",
+    "registrationCode",
+    "age",
+    "dob",
+    "phone",
+    "whatsapp",
+    "email",
+    "registeredDate",
+];
+
+function pickPreservedPatientIdentity(prevPatient, patientContext) {
+    const fromForm = prevPatient || {};
+    const preserved = {};
+    for (const key of PATIENT_IDENTITY_FIELD_KEYS) {
+        preserved[key] = fromForm[key] ?? "";
+    }
+    if (patientContext?.patientCode && !preserved.registrationCode) {
+        preserved.registrationCode = patientContext.patientCode;
+    }
+    if (patientContext?.firstName && !preserved.firstName) {
+        preserved.firstName = patientContext.firstName;
+    }
+    if (patientContext?.lastName && !preserved.lastName) {
+        preserved.lastName = patientContext.lastName;
+    }
+    if (patientContext?.birthYear && !preserved.age) {
+        preserved.age = String(
+            new Date().getFullYear() - parseInt(patientContext.birthYear, 10)
+        );
+    }
+    if (patientContext?.dob && !preserved.dob) {
+        preserved.dob = patientContext.dob;
+    }
+    return preserved;
+}
+
+function mergeRealisticTestCase(prevForm, sample, patientContext) {
+    const prev = ensureFormDefaults(prevForm);
+    const normalizedSample = ensureFormDefaults(sample);
+
+    if (!patientContext) {
+        return applyForwardReflections(normalizedSample);
+    }
+
+    const preservedPatient = pickPreservedPatientIdentity(prev.patient, patientContext);
+    const merged = ensureFormDefaults({
+        ...normalizedSample,
+        patient: {
+            ...normalizedSample.patient,
+            ...preservedPatient,
+        },
+        meta: {
+            ...normalizedSample.meta,
+            ...prev.meta,
+            updatedAt: new Date().toISOString(),
+            formVersion: FORM_VERSION,
+        },
+    });
+
+    return applyForwardReflections(merged);
+}
+
 const applyForwardReflections = (input) => {
     const normalized = ensureFormDefaults(input);
     const next = {
@@ -1542,9 +1607,20 @@ function Grid({ children }) {
     return <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{children}</div>;
 }
 
-export default function BeatHeadacheNewPatientForm() {
+export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncounter, hideResearchExport }) {
     const [page, setPage] = useState(0);
-    const [form, setForm] = useState(() => ensureFormDefaults(createInitialState()));
+    const [form, setForm] = useState(() => {
+        const init = createInitialState();
+        if (patientContext) {
+            init.patient.firstName = patientContext.firstName || "";
+            init.patient.lastName = patientContext.lastName || "";
+            init.patient.registrationCode = patientContext.patientCode || "";
+            if (patientContext.birthYear) {
+                init.patient.age = (new Date().getFullYear() - parseInt(patientContext.birthYear)).toString();
+            }
+        }
+        return ensureFormDefaults(init);
+    });
     const [activeSiblingTab, setActiveSiblingTab] = useState(2); // Sibling 1 is index 2
     const [viewMode, setViewMode] = useState("doctor"); // "doctor" or "patient"
 
@@ -2379,6 +2455,7 @@ export default function BeatHeadacheNewPatientForm() {
                                 </div>
                             </Card>
 
+                            {!hideResearchExport && (
                             <Card title="Export Tools" description="Data export for clinical research.">
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-1 gap-3">
@@ -2418,6 +2495,7 @@ export default function BeatHeadacheNewPatientForm() {
                                     </p>
                                 </div>
                             </Card>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2441,10 +2519,26 @@ export default function BeatHeadacheNewPatientForm() {
 
                         <button
                             type="button"
-                            onClick={() => console.log("New Patient Form Data", form)}
+                            onClick={() => {
+                                console.log("New Patient Form Data", form);
+                                if (onSaveEncounter) {
+                                    const safeForm = ensureFormDefaults(form);
+                                    const formForReport = {
+                                        ...safeForm,
+                                        meta: {
+                                            ...safeForm.meta,
+                                            reportGeneratedAt: new Date().toISOString(),
+                                            formVersion: FORM_VERSION,
+                                        },
+                                    };
+                                    onSaveEncounter(formForReport, fresshTotal);
+                                } else {
+                                    alert("Form submitted locally.");
+                                }
+                            }}
                             className="w-full rounded-2xl bg-sky-600 px-6 py-4 text-sm font-bold text-white shadow-lg shadow-sky-200 transition hover:bg-sky-700"
                         >
-                            Submit Form
+                            {onSaveEncounter ? "Save Encounter to Patient Record" : "Submit Form"}
                         </button>
                     </div>
                 </Card>
@@ -2567,17 +2661,26 @@ export default function BeatHeadacheNewPatientForm() {
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        const sample = createRandomRealisticTestCase();
-                                        const reflected = applyForwardReflections(sample);
-                                        setForm(reflected);
+                                        setForm((prev) => {
+                                            const sample = createRandomRealisticTestCase();
+                                            return mergeRealisticTestCase(prev, sample, patientContext);
+                                        });
                                         setPage(0);
-                                        alert("Random realistic test case loaded. Check later pages/debug panel.");
+                                        alert(
+                                            patientContext
+                                                ? "Realistic test data loaded. Patient ID and identity fields were preserved."
+                                                : "Random realistic test case loaded. Check later pages/debug panel."
+                                        );
                                     }}
                                     className="rounded-xl bg-sky-600 px-4 py-3 text-xs font-bold transition hover:bg-sky-500 shadow-lg shadow-sky-900/20"
                                 >
                                     Fill Realistic Test Case
                                 </button>
-                                <p className="text-[10px] text-center text-slate-400 font-medium">Generates a different child headache case each time.</p>
+                                <p className="text-[10px] text-center text-slate-400 font-medium">
+                                    {patientContext
+                                        ? "Test data will preserve the selected patient ID and identity details."
+                                        : "Generates a different child headache case each time."}
+                                </p>
                             </div>
                             <button
                                 type="button"
