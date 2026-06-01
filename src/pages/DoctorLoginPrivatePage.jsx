@@ -6,6 +6,14 @@ import { useNavigate } from "react-router-dom";
 import { Stethoscope, AlertCircle, Clock, ShieldAlert } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
+function isFirebaseConfigured() {
+  return Boolean(
+    import.meta.env.VITE_FIREBASE_API_KEY &&
+      import.meta.env.VITE_FIREBASE_AUTH_DOMAIN &&
+      import.meta.env.VITE_FIREBASE_PROJECT_ID
+  );
+}
+
 function getAuthErrorMessage(code) {
   switch (code) {
     case "auth/popup-closed-by-user":
@@ -18,6 +26,10 @@ function getAuthErrorMessage(code) {
       return "Firebase API key is invalid. Please contact administration.";
     case "auth/network-request-failed":
       return "A network error occurred. Please check your internet connection.";
+    case "permission-denied":
+      return "Permission denied loading your account. Contact administration.";
+    case "unavailable":
+      return "You appear to be offline. Please check your connection and try again.";
     default:
       return null;
   }
@@ -27,7 +39,7 @@ export default function DoctorLoginPrivatePage() {
   const [statusMessage, setStatusMessage] = useState(null); // { type: 'error'|'pending'|'blocked', text }
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { firebaseUser, userProfile, loading: authLoading } = useAuth();
+  const { firebaseUser, userProfile, loading: authLoading, refreshUserProfile } = useAuth();
 
   // If already logged in and approved, redirect immediately
   useEffect(() => {
@@ -47,11 +59,29 @@ export default function DoctorLoginPrivatePage() {
       setStatusMessage(null);
       setLoading(true);
 
+      if (!isFirebaseConfigured()) {
+        setStatusMessage({
+          type: "error",
+          text: "Firebase is not configured. Missing environment values — contact administration.",
+        });
+        return;
+      }
+
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
 
       const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
+      let userSnap;
+      try {
+        userSnap = await getDoc(userRef);
+      } catch (fetchErr) {
+        const friendly = getAuthErrorMessage(fetchErr.code);
+        setStatusMessage({
+          type: "error",
+          text: friendly || "Could not load your account profile. Please try again.",
+        });
+        return;
+      }
 
       if (!userSnap.exists()) {
         // Sign out so AuthContext doesn't hold a user without a profile
@@ -91,13 +121,22 @@ export default function DoctorLoginPrivatePage() {
       if (userData.status === "pending" || userData.approved !== true) {
         setStatusMessage({
           type: "pending",
-          text: "Your account is awaiting admin approval. You will receive access once approved.",
+          text: "Your doctor account is pending admin approval.",
         });
         return;
       }
 
-      // Approved — navigate. AuthContext onAuthStateChanged will update the profile
-      // in parallel. ProtectedRoute waits until profile is ready.
+      if (userData.status !== "approved") {
+        setStatusMessage({
+          type: "blocked",
+          text: "Your account is not approved for portal access. Please contact administration.",
+        });
+        return;
+      }
+
+      // Sync AuthContext profile before navigation so ProtectedRoute has data
+      await refreshUserProfile(user);
+
       if (userData.role === "admin") {
         navigate("/admin", { replace: true });
       } else {

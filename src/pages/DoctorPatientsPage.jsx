@@ -43,7 +43,8 @@ export default function DoctorPatientsPage() {
           code,
           userData.uid,
           userData.displayName || "Doctor",
-          userData.email || ""
+          userData.email || "",
+          isAdmin
         );
         setEncounters(encs);
       }

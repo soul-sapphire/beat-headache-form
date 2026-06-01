@@ -583,6 +583,71 @@ function createRandomRealisticTestCase() {
     return base;
 }
 
+/** Identity fields kept when filling test data in a doctor encounter (patientContext set). */
+const PATIENT_IDENTITY_FIELD_KEYS = [
+    "firstName",
+    "lastName",
+    "registrationCode",
+    "age",
+    "dob",
+    "phone",
+    "whatsapp",
+    "email",
+    "registeredDate",
+];
+
+function pickPreservedPatientIdentity(prevPatient, patientContext) {
+    const fromForm = prevPatient || {};
+    const preserved = {};
+    for (const key of PATIENT_IDENTITY_FIELD_KEYS) {
+        preserved[key] = fromForm[key] ?? "";
+    }
+    if (patientContext?.patientCode && !preserved.registrationCode) {
+        preserved.registrationCode = patientContext.patientCode;
+    }
+    if (patientContext?.firstName && !preserved.firstName) {
+        preserved.firstName = patientContext.firstName;
+    }
+    if (patientContext?.lastName && !preserved.lastName) {
+        preserved.lastName = patientContext.lastName;
+    }
+    if (patientContext?.birthYear && !preserved.age) {
+        preserved.age = String(
+            new Date().getFullYear() - parseInt(patientContext.birthYear, 10)
+        );
+    }
+    if (patientContext?.dob && !preserved.dob) {
+        preserved.dob = patientContext.dob;
+    }
+    return preserved;
+}
+
+function mergeRealisticTestCase(prevForm, sample, patientContext) {
+    const prev = ensureFormDefaults(prevForm);
+    const normalizedSample = ensureFormDefaults(sample);
+
+    if (!patientContext) {
+        return applyForwardReflections(normalizedSample);
+    }
+
+    const preservedPatient = pickPreservedPatientIdentity(prev.patient, patientContext);
+    const merged = ensureFormDefaults({
+        ...normalizedSample,
+        patient: {
+            ...normalizedSample.patient,
+            ...preservedPatient,
+        },
+        meta: {
+            ...normalizedSample.meta,
+            ...prev.meta,
+            updatedAt: new Date().toISOString(),
+            formVersion: FORM_VERSION,
+        },
+    });
+
+    return applyForwardReflections(merged);
+}
+
 const applyForwardReflections = (input) => {
     const normalized = ensureFormDefaults(input);
     const next = {
@@ -1542,7 +1607,7 @@ function Grid({ children }) {
     return <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{children}</div>;
 }
 
-export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncounter }) {
+export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncounter, hideResearchExport }) {
     const [page, setPage] = useState(0);
     const [form, setForm] = useState(() => {
         const init = createInitialState();
@@ -2390,6 +2455,7 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                 </div>
                             </Card>
 
+                            {!hideResearchExport && (
                             <Card title="Export Tools" description="Data export for clinical research.">
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-1 gap-3">
@@ -2429,6 +2495,7 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                     </p>
                                 </div>
                             </Card>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2594,17 +2661,26 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        const sample = createRandomRealisticTestCase();
-                                        const reflected = applyForwardReflections(sample);
-                                        setForm(reflected);
+                                        setForm((prev) => {
+                                            const sample = createRandomRealisticTestCase();
+                                            return mergeRealisticTestCase(prev, sample, patientContext);
+                                        });
                                         setPage(0);
-                                        alert("Random realistic test case loaded. Check later pages/debug panel.");
+                                        alert(
+                                            patientContext
+                                                ? "Realistic test data loaded. Patient ID and identity fields were preserved."
+                                                : "Random realistic test case loaded. Check later pages/debug panel."
+                                        );
                                     }}
                                     className="rounded-xl bg-sky-600 px-4 py-3 text-xs font-bold transition hover:bg-sky-500 shadow-lg shadow-sky-900/20"
                                 >
                                     Fill Realistic Test Case
                                 </button>
-                                <p className="text-[10px] text-center text-slate-400 font-medium">Generates a different child headache case each time.</p>
+                                <p className="text-[10px] text-center text-slate-400 font-medium">
+                                    {patientContext
+                                        ? "Test data will preserve the selected patient ID and identity details."
+                                        : "Generates a different child headache case each time."}
+                                </p>
                             </div>
                             <button
                                 type="button"

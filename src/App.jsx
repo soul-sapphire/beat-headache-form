@@ -18,6 +18,7 @@ import DoctorRegisterPrivatePage from "./pages/DoctorRegisterPrivatePage";
 import DoctorLoginPrivatePage from "./pages/DoctorLoginPrivatePage";
 import DoctorDashboardPage from "./pages/DoctorDashboardPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
+import AdminResearchExportPage from "./pages/AdminResearchExportPage";
 import DoctorNewPatientPage from "./pages/DoctorNewPatientPage";
 import DoctorEncounterFormPage from "./pages/DoctorEncounterFormPage";
 import DoctorPatientsPage from "./pages/DoctorPatientsPage";
@@ -57,6 +58,14 @@ function App() {
                   <AdminDashboardPage />
                 </ProtectedRoute>
               } 
+            />
+            <Route
+              path="/admin/research-export"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminResearchExportPage />
+                </ProtectedRoute>
+              }
             />
 
             <Route

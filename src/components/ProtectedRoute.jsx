@@ -25,6 +25,7 @@ function DebugPanel({ userProfile }) {
       <div style={{ color: "#38bdf8", fontWeight: "bold", marginBottom: 2 }}>
         🔧 DEV Auth State
       </div>
+      <div>uid: {userProfile?.uid?.slice(0, 12) || "—"}</div>
       <div>email: {userProfile?.email || "—"}</div>
       <div>role: {userProfile?.role || "—"}</div>
       <div>
@@ -41,7 +42,8 @@ function DebugPanel({ userProfile }) {
 }
 
 export default function ProtectedRoute({ children, allowedRoles }) {
-  const { firebaseUser, userProfile, loading, authError } = useAuth();
+  const { firebaseUser, userProfile, loading, authError, refreshUserProfile } = useAuth();
+  const [retrying, setRetrying] = React.useState(false);
 
   // 1. Wait while the initial auth check is in progress
   if (loading) {
@@ -71,10 +73,18 @@ export default function ProtectedRoute({ children, allowedRoles }) {
           <h2 className="text-xl font-bold text-gray-800">Profile Load Error</h2>
           <p className="text-gray-500 text-sm leading-relaxed">{authError}</p>
           <button
-            onClick={() => window.location.reload()}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition-colors shadow-sm"
+            onClick={async () => {
+              setRetrying(true);
+              try {
+                await refreshUserProfile();
+              } finally {
+                setRetrying(false);
+              }
+            }}
+            disabled={retrying}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition-colors shadow-sm disabled:opacity-50"
           >
-            <RefreshCw className="w-4 h-4" /> Retry
+            <RefreshCw className={`w-4 h-4 ${retrying ? "animate-spin" : ""}`} /> Retry
           </button>
         </div>
       </div>
@@ -133,8 +143,8 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     );
   }
 
-  // 6. Pending approval
-  if (userProfile.status === "pending" || userProfile.approved !== true) {
+  // 6. Pending approval (must be Boolean true and status exactly "approved")
+  if (userProfile.status !== "approved" || userProfile.approved !== true) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
         <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full text-center border-t-4 border-yellow-400 space-y-4">

@@ -116,9 +116,10 @@ export default function DoctorEncounterFormPage() {
         </div>
       </div>
       
-      <BeatHeadacheNewPatientForm 
-        patientContext={patient} 
-        onSaveEncounter={handleSaveEncounter} 
+      <BeatHeadacheNewPatientForm
+        patientContext={patient}
+        onSaveEncounter={handleSaveEncounter}
+        hideResearchExport
       />
     </div>
   );
