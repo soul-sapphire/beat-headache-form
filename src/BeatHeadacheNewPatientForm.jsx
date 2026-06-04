@@ -1767,7 +1767,38 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
 
                 <Card title="Birth History">
                     <Grid>
-                        <Field label="Parity of Mother"><TextInput value={form.birth.parity} onChange={(v) => update("birth", "parity", v)} /></Field>
+                        <Field label="Pregnancy / Parity">
+                            <div className="flex gap-3 items-center mt-1">
+                                <div className="flex items-center gap-1.5 flex-1">
+                                    <span className="text-sm font-semibold text-slate-500">P</span>
+                                    <input 
+                                        type="number"
+                                        min="0"
+                                        value={form.perinatal?.pregnancyNumber ?? ""}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            const v = val === "" ? "" : Math.max(0, parseInt(val) || 0);
+                                            update("perinatal", "pregnancyNumber", v);
+                                        }}
+                                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-1">
+                                    <span className="text-sm font-semibold text-slate-500">C</span>
+                                    <input 
+                                        type="number"
+                                        min="0"
+                                        value={form.perinatal?.childNumber ?? ""}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            const v = val === "" ? "" : Math.max(0, parseInt(val) || 0);
+                                            update("perinatal", "childNumber", v);
+                                        }}
+                                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                                    />
+                                </div>
+                            </div>
+                        </Field>
                         <Field label="Duration of Gestation(weeks)"><TextInput type="number" value={form.birth.gestation} onChange={(v) => update("birth", "gestation", v)} /></Field>
                         <Field label="Birth Weight(Kg)"><TextInput type="number" value={form.birth.birthWeight} onChange={(v) => update("birth", "birthWeight", v)} /></Field>
                         <Field label="Family Income (LKR/Month)"><TextInput type="number" value={form.birth.familyIncome} onChange={(v) => update("birth", "familyIncome", v)} /></Field>
