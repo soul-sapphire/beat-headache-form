@@ -850,6 +850,8 @@ export function generateDoctorReportPdf(form, fresshTotal) {
     const PW = 210;
     const PH = 297;
     const UW = PW - M * 2;
+    const gap = 4;
+    const cardW = (UW - gap) / 2;
     let cy = M;
 
     // --- Local Colors ---
