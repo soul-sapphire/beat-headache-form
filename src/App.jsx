@@ -19,6 +19,8 @@ import DoctorLoginPrivatePage from "./pages/DoctorLoginPrivatePage";
 import DoctorDashboardPage from "./pages/DoctorDashboardPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminResearchExportPage from "./pages/AdminResearchExportPage";
+import AdminContactMessagesPage from "./pages/AdminContactMessagesPage";
+import AdminFeedbackPage from "./pages/AdminFeedbackPage";
 import DoctorNewPatientPage from "./pages/DoctorNewPatientPage";
 import DoctorEncounterFormPage from "./pages/DoctorEncounterFormPage";
 import DoctorPatientsPage from "./pages/DoctorPatientsPage";
@@ -64,6 +66,22 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
                   <AdminResearchExportPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/contact-messages"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminContactMessagesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/feedback"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminFeedbackPage />
                 </ProtectedRoute>
               }
             />

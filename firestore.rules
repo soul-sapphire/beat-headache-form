@@ -98,5 +98,17 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if isAdmin();
     }
+
+    // contactMessages — anyone can create; only admin can read/list/manage
+    match /contactMessages/{messageId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // feedback — anyone can create; only admin can read/list/manage
+    match /feedback/{feedbackId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
   }
 }
