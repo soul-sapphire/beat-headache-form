@@ -950,6 +950,12 @@ export function generateDoctorReportPdf(form, fresshTotal) {
         return { p: pv || "—", c: cv || "—" };
     };
 
+    const safeDay = (val) => {
+        const n = parseInt(val);
+        if (isNaN(n) || n < 0) return "Not recorded";
+        return `${n} d`;
+    };
+
     // Filter out auto-generated jargon from secondary notes
     const cleanSecondaryNotes = (text) => {
         if (!text) return "";
@@ -972,182 +978,165 @@ export function generateDoctorReportPdf(form, fresshTotal) {
         return lines.join(", ");
     };
 
-    // --- Page-break aware Y tracker ---
+    // --- Page-break aware Y tracker (DISABLED for one-page) ---
     const ensureSpace = (need) => {
-        if (cy + need > PH - 18) {
-            doc.addPage();
-            cy = M;
-            return true;
-        }
+        // No page breaks allowed for one-page report
         return false;
     };
 
     // --- Drawing Helpers ---
     const drawHeader = () => {
         doc.setFillColor(...C_BG);
-        doc.rect(0, 0, PW, 22, "F");
+        doc.rect(0, 0, PW, 18, "F");
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(14);
+        doc.setFontSize(12);
         doc.setTextColor(...C_TEXT);
-        doc.text("Beat Headache", M, 12);
+        doc.text("Beat Headache", M, 10);
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
+        doc.setFontSize(8.5);
         doc.setTextColor(...C_MUTED);
-        doc.text("Doctor Clinical Report", M, 17);
+        doc.text("Doctor Clinical Report", M, 14);
         const codeStr = p.registrationCode ? `ID: ${p.registrationCode}` : "";
         const rightInfo = [codeStr, `Date: ${new Date().toLocaleDateString()}`].filter(Boolean).join(" | ");
-        doc.setFontSize(9);
-        doc.text(rightInfo, PW - M, 17, { align: "right" });
-        cy = 26;
+        doc.setFontSize(8);
+        doc.text(rightInfo, PW - M, 14, { align: "right" });
+        cy = 22;
     };
 
     const drawSectionTitle = (title) => {
-        ensureSpace(12);
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(8);
+        doc.setFontSize(7.5);
         doc.setTextColor(...C_ACCENT);
         doc.text(title.toUpperCase(), M, cy);
-        cy += 3;
+        cy += 2.5;
     };
 
     const drawFieldBox = (label, value, bx, by, bw, bh) => {
         doc.setFillColor(...C_WHITE);
         doc.setDrawColor(...C_BORDER);
-        doc.setLineWidth(0.3);
-        doc.roundedRect(bx, by, bw, bh, 1.5, 1.5, "FD");
+        doc.setLineWidth(0.2);
+        doc.roundedRect(bx, by, bw, bh, 1, 1, "FD");
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(6.5);
+        doc.setFontSize(6);
         doc.setTextColor(...C_MUTED);
-        doc.text(label, bx + 2, by + 3.5);
+        doc.text(label, bx + 1.5, by + 3);
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(7.5);
+        doc.setFontSize(7);
         doc.setTextColor(...C_TEXT);
-        doc.text(trunc(value, bw / 1.4), bx + 2, by + 7.5);
+        doc.text(trunc(value, bw / 1.3), bx + 1.5, by + 7);
     };
 
     const drawInlineField = (label, value, fx, fy, labelW) => {
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(6.5);
+        doc.setFontSize(6);
         doc.setTextColor(...C_MUTED);
         doc.text(label, fx, fy);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(6.5);
         doc.setTextColor(...C_TEXT);
-        doc.text(trunc(value, 50), fx + (labelW || 25), fy);
+        doc.text(trunc(value, 50), fx + (labelW || 22), fy);
     };
 
     const drawCard = (cx, cy_, cw, title, rows) => {
-        const ch = 6 + rows.length * 4.2 + 2;
+        const rowH = 3.8;
+        const ch = 5 + rows.length * rowH + 1;
         doc.setDrawColor(...C_BORDER);
         doc.setFillColor(...C_WHITE);
-        doc.roundedRect(cx, cy_, cw, ch, 1.5, 1.5, "FD");
+        doc.roundedRect(cx, cy_, cw, ch, 1, 1, "FD");
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(7);
+        doc.setFontSize(6.5);
         doc.setTextColor(...C_ACCENT);
-        doc.text(title.toUpperCase(), cx + 2, cy_ + 4.5);
-        let ly = cy_ + 9;
+        doc.text(title.toUpperCase(), cx + 2, cy_ + 4);
+        let ly = cy_ + 8;
         rows.forEach(r => {
             doc.setFont("helvetica", "bold");
-            doc.setFontSize(6.5);
+            doc.setFontSize(6);
             doc.setTextColor(...C_MUTED);
             doc.text(r[0], cx + 2, ly);
             doc.setFont("helvetica", "normal");
             doc.setTextColor(...C_TEXT);
-            const lines = doc.splitTextToSize(clean(r[1]), cw - 27);
-            doc.text(lines[0] || "—", cx + 25, ly);
-            ly += 4.2;
+            const val = clean(r[1]);
+            const lines = doc.splitTextToSize(val, cw - 25);
+            doc.text(lines[0] || "—", cx + 22, ly);
+            ly += rowH;
         });
         return ch;
     };
 
     const drawFeatureBlock = (label, value, fx, fy, fw, fh) => {
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(6.5);
+        doc.setFontSize(6);
         doc.setTextColor(...C_MUTED);
         doc.text(label, fx, fy);
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(7);
+        doc.setFontSize(6.5);
         doc.setTextColor(...C_TEXT);
-        const lines = doc.splitTextToSize(clean(value), fw);
-        const maxLines = Math.floor((fh || 6) / 3.2);
-        doc.text(lines.slice(0, maxLines), fx, fy + 3);
+        const val = clean(value);
+        const lines = doc.splitTextToSize(val, fw);
+        const maxLines = Math.floor((fh || 5) / 2.8);
+        doc.text(lines.slice(0, maxLines), fx, fy + 2.8);
     };
 
     // ============================================================
-    //  DOCTOR REPORT CONTENT
+    //  DOCTOR REPORT CONTENT (ONE PAGE)
     // ============================================================
     drawHeader();
 
-    // --- Top Demographics (Compact) ---
-    const bw = (UW - 6) / 3;
-    drawFieldBox("Patient ID", p.registrationCode || "N/A", M, cy, bw, 10);
-    drawFieldBox("Age / Gender", `${clean(p.age)} / ${clean(p.gender)}`, M + bw + 3, cy, bw, 10);
-    drawFieldBox("Ethnicity", clean(p.ethnicity), M + bw * 2 + 6, cy, bw, 10);
-    cy += 12;
+    // --- Top Demographics ---
+    const bw = (UW - 4) / 3;
+    drawFieldBox("Patient ID", p.registrationCode || "N/A", M, cy, bw, 9);
+    drawFieldBox("Age / Gender", `${clean(p.age)} / ${clean(p.gender)}`, M + bw + 2, cy, bw, 9);
+    drawFieldBox("Ethnicity", clean(p.ethnicity), M + bw * 2 + 4, cy, bw, 9);
+    cy += 11;
 
     const prevDiag = dedupeText(form.clinicPath?.previousDiagnosis);
-    drawFieldBox("Referral", clean(form.referral?.source), M, cy, bw, 10);
-    drawFieldBox("Visit Type", clean(form.clinicPath?.initiatedBy), M + bw + 3, cy, bw, 10);
-    drawFieldBox("Previous Diagnosis", prevDiag, M + bw * 2 + 6, cy, bw, 10);
+    drawFieldBox("Referral", clean(form.referral?.source), M, cy, bw, 9);
+    drawFieldBox("Visit Type", clean(form.clinicPath?.initiatedBy), M + bw + 2, cy, bw, 9);
+    drawFieldBox("Previous Diagnosis", prevDiag, M + bw * 2 + 4, cy, bw, 9);
+    cy += 12;
+
+    // --- Assessment & Plan (Compact) ---
+    drawSectionTitle("Assessment & Plan");
+    doc.setFillColor(...C_CYAN);
+    doc.roundedRect(M, cy, UW, 12, 1, 1, "F");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(6.5); doc.setTextColor(...C_ACCENT);
+    doc.text("Working Impression:", M + 2, cy + 4);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(7); doc.setTextColor(...C_TEXT);
+    const impTxt = clean(diagSummary.likelyType) + " — " + clean(diagSummary.explanation);
+    const impLines = doc.splitTextToSize(impTxt, UW - 38);
+    doc.text(impLines.slice(0, 2), M + 36, cy + 4);
     cy += 14;
 
-    // --- Assessment & Plan (CRITICAL: Move to first page) ---
-    drawSectionTitle("Assessment & Plan");
-    cy += 2;
-    doc.setFillColor(...C_CYAN);
-    doc.roundedRect(M, cy, UW, 14, 1.5, 1.5, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7);
-    doc.setTextColor(...C_ACCENT);
-    doc.text("Working Impression:", M + 2, cy + 4.5);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.setTextColor(...C_TEXT);
-    const impressionLines = doc.splitTextToSize(clean(diagSummary.likelyType) + " — " + clean(diagSummary.explanation), UW - 40);
-    doc.text(impressionLines.slice(0, 2), M + 38, cy + 4.5);
-    cy += 16;
-
-    // Concise Plan & Medication Discussion
-    const planNotes = pickFinalProgressiveValue(uniqueLines(final_.medicationPlan)).map(clean).filter(x => x !== "—");
-    if (planNotes.length > 0 || form.clinicPath?.previousTreatmentOutcome) {
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(7);
-        doc.setTextColor(...C_MUTED);
-        doc.text("Clinical Notes & Plan:", M, cy);
-        cy += 4;
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(7);
-        doc.setTextColor(...C_TEXT);
-        
-        if (form.clinicPath?.previousTreatmentOutcome) {
-            doc.text(`• Prev. Treatment: ${clean(form.clinicPath.previousTreatmentOutcome)}`, M + 2, cy);
-            cy += 4;
-        }
-        
-        planNotes.forEach(note => {
-            ensureSpace(5);
-            const lines = doc.splitTextToSize(`• ${note}`, UW - 4);
-            doc.text(lines.slice(0, 2), M + 2, cy);
-            cy += lines.slice(0, 2).length * 3.2 + 1;
-        });
-        cy += 2;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); doc.setTextColor(...C_TEXT);
+    if (form.clinicPath?.previousTreatmentOutcome) {
+        doc.setFont("helvetica", "bold"); doc.text("Prev. Treatment:", M, cy);
+        doc.setFont("helvetica", "normal"); doc.text(trunc(form.clinicPath.previousTreatmentOutcome, 150), M + 22, cy);
+        cy += 3.5;
     }
+    
+    const medicineNote = `Used in last 4 weeks; yesterday: ${clean(yesterday.hadHeadacheYesterday === "Yes" ? "taken" : "none")}`;
+    doc.setFont("helvetica", "bold"); doc.text("Medicine Use:", M, cy);
+    doc.setFont("helvetica", "normal"); doc.text(medicineNote, M + 22, cy);
+    cy += 3.5;
 
-    // Allergy/drug warning if relevant
     if (med.allergies === "Yes" && med.allergySpecify) {
-        ensureSpace(8);
-        doc.setFillColor(254, 243, 199); // soft yellow
-        doc.roundedRect(M, cy, UW, 7, 1, 1, "F");
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(6.5);
-        doc.setTextColor(...C_RED);
-        doc.text(`⚠ Allergy Alert: ${trunc(med.allergySpecify, 120)}`, M + 2, cy + 4.5);
-        cy += 9;
+        doc.setFont("helvetica", "bold"); doc.setTextColor(...C_RED);
+        doc.text("Safety Notes:", M, cy);
+        doc.setFont("helvetica", "normal"); doc.text(`Allergy: ${trunc(med.allergySpecify, 140)}`, M + 22, cy);
+        cy += 3.5;
     }
+
+    if (exam.tests) {
+        doc.setFont("helvetica", "bold"); doc.setTextColor(...C_ACCENT);
+        doc.text("Suggested Tests:", M, cy);
+        doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT);
+        doc.text(trunc(exam.tests, 140), M + 22, cy);
+        cy += 4;
+    }
+    cy += 2;
 
     // --- Background Summary ---
     drawSectionTitle("Background Summary");
-    cy += 2;
     const parityObj = parseParity(b.parity);
     let pVal = peri.pregnancyNumber || parityObj.p;
     let cVal = peri.childNumber || parityObj.c;
@@ -1156,135 +1145,119 @@ export function generateDoctorReportPdf(form, fresshTotal) {
     const siblings = familyRows.slice(2).filter(s => s && s.age);
     const sibDetails = siblings.map(s => `${s.relation || "Sib"} ${s.age}y`).join(", ") || "None";
 
-    drawInlineField("Pregnancy/Parity", `P [${pVal}]  C [${cVal}]`, M, cy, 27);
-    drawInlineField("Mother", trunc(`${mother.age || "?"}y, ${mother.issues?.length ? mother.issues.join(",") : "None"}`, 45), M + UW / 2, cy, 15);
-    cy += 4;
-    drawInlineField("Gestation", `${clean(b.gestation)} wks`, M, cy, 27);
-    drawInlineField("Father", trunc(`${father.age || "?"}y, ${father.issues?.length ? father.issues.join(",") : "None"}`, 45), M + UW / 2, cy, 15);
-    cy += 4;
-    drawInlineField("Birth / Consang", `${clean(b.birthWeight)} kg / ${clean(b.delivery)} | Consang: ${clean(b.consanguinity)}`, M, cy, 27);
-    drawInlineField("Siblings", trunc(sibDetails, 45), M + UW / 2, cy, 15);
-    cy += 6;
+    drawInlineField("Pregnancy/Parity", `P [${pVal}]  C [${cVal}]`, M, cy, 22);
+    drawInlineField("Mother", trunc(`${mother.age || "?"}y, ${mother.issues?.length ? mother.issues.join(",") : "None"}`, 45), M + UW / 2, cy, 12);
+    cy += 3.5;
+    drawInlineField("Gestation", `${clean(b.gestation)} wks`, M, cy, 22);
+    drawInlineField("Father", trunc(`${father.age || "?"}y, ${father.issues?.length ? father.issues.join(",") : "None"}`, 45), M + UW / 2, cy, 12);
+    cy += 3.5;
+    drawInlineField("Birth / Consanguinity", `${clean(b.birthWeight)} kg / ${clean(b.delivery)} | Consang: ${clean(b.consanguinity)}`, M, cy, 28);
+    drawInlineField("Siblings", trunc(sibDetails, 45), M + UW / 2, cy, 12);
+    cy += 5;
 
-    // Perinatal & Medical Card (Combined)
-    ensureSpace(20);
+    // Perinatal & Medical Card
     doc.setFillColor(...C_CYAN);
-    doc.roundedRect(M, cy, UW, 16, 1.5, 1.5, "F");
-    doc.setFont("helvetica", "bold"); doc.setFontSize(6.5); doc.setTextColor(...C_ACCENT);
-    doc.text("Perinatal & Early Illnesses:", M + 2, cy + 4);
-    doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT);
-    doc.text(trunc(`Complications: ${clean(peri.complications)} | PBU: ${peri.pbuStay === "Y" ? (peri.pbuDays + " d") : "No"} | ${clean(peri.other)}`, 130), M + 35, cy + 4);
-    doc.text(trunc(`Medical: ${clean(med.pastMedical)} | Surgical: ${clean(med.pastSurgical)}`, 150), M + 2, cy + 8);
-    doc.text(trunc(`Drugs: ${clean(med.drugHistory)} | Allergies: ${med.allergies === "Yes" ? clean(med.allergySpecify) : "None"}`, 150), M + 2, cy + 12);
-    cy += 20;
+    doc.roundedRect(M, cy, UW, 14, 1, 1, "F");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(6); doc.setTextColor(...C_ACCENT);
+    doc.text("Perinatal & Medical History:", M + 2, cy + 3.5);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); doc.setTextColor(...C_TEXT);
+    doc.text(trunc(`Perinatal: ${clean(peri.complications)} | PBU: ${peri.pbuStay === "Y" ? (peri.pbuDays + " d") : "No"} | ${clean(peri.other)}`, 140), M + 32, cy + 3.5);
+    doc.text(trunc(`Medical: ${clean(med.pastMedical)} | Surgical: ${clean(med.pastSurgical)} | Drugs: ${clean(med.drugHistory)}`, 160), M + 2, cy + 7.5);
+    doc.text(trunc(`Allergies: ${med.allergies === "Yes" ? clean(med.allergySpecify) : "None"}`, 160), M + 2, cy + 11.5);
+    cy += 17;
 
-    // --- Development & Impact (Compact Card) ---
-    ensureSpace(25);
+    // --- Development & Impact (Compact) ---
     const ch2 = drawCard(M, cy, UW, "Development & Impact", [
         ["Motor/Speech", `Gross: ${dev.grossMotorIssue === "Yes" ? clean(dev.grossMotorDescribe) : "Normal"} | Fine: ${dev.fineMotorIssue === "Yes" ? clean(dev.fineMotorDescribe) : "Normal"} | Speech: ${dev.speechIssue === "Yes" ? clean(dev.speechDescribe) : "Normal"}`],
         ["School/Activity", `Absence: ${clean(impact.schoolAbsentDaysLastFourWeeks)}d/4wks | Activity Limited: ${clean(impact.activityLimitedDaysLastFourWeeks)}d/4wks`],
         ["Parent/Yday", `Work Loss: ${clean(impact.parentLostWork)} (${clean(impact.parentLostWorkDays)}d) | Yesterday HA: ${clean(yesterday.hadHeadacheYesterday)} (${clean(yesterday.severity)})`]
     ]);
-    cy += ch2 + 6;
+    cy += ch2 + 4;
 
     // --- Headache Phenotype ---
     drawSectionTitle("Headache Phenotype");
-    cy += 2;
-    const hCardH = 34;
-    ensureSpace(hCardH + 5);
+    const hCardH = 28;
     doc.setDrawColor(...C_BORDER); doc.setFillColor(...C_WHITE);
-    doc.roundedRect(M, cy, UW, hCardH, 1.5, 1.5, "FD");
-    const colW = (UW - 6) / 2;
-    drawFeatureBlock("HISTORY & PATTERN", `${h.durationYears || 0}y ${h.durationMonths || 0}m | ${clean(h.pattern)}`, M + 3, cy + 4.5, colW - 6, 6);
-    drawFeatureBlock("LOCATION & SIDE", cleanArr(h.location, 3) + (h.frontalSide ? ` (F: ${h.frontalSide})` : "") + (h.temporalSide ? ` (T: ${h.temporalSide})` : ""), M + 3, cy + 12.5, colW - 6, 6);
-    drawFeatureBlock("PAIN CHARACTER", cleanArr(h.painNature, 3) + " | " + cleanArr(h.associated, 4), M + 3, cy + 20.5, colW - 6, 6);
-    drawFeatureBlock("SEVERITY & DURATION", `${clean(t.headache?.severity)} | ${clean(t.headache?.duration)}`, M + colW + 3, cy + 4.5, colW - 6, 6);
-    drawFeatureBlock("FREQUENCY", `${h.headacheDaysLastFourWeeks || 0} d/4wks | Meds: ${h.medicineDaysLastFourWeeks || 0} d`, M + colW + 3, cy + 12.5, colW - 6, 6);
-    drawFeatureBlock("AURA & PROD/POST", `Aura: ${t.aura?.hasAura === "Yes" ? "Yes" : "No"} | Prod: ${t.prodromal?.hasProdromal === "Yes" ? "Yes" : "No"} | Post: ${t.postdrome?.hasPostdrome === "Yes" ? "Yes" : "No"}`, M + colW + 3, cy + 20.5, colW - 6, 6);
-    drawFeatureBlock("TRIGGERS & RELIEF", `Trig: ${cleanArr(h.aggravating, 3)} | Rel: ${cleanArr(h.relief, 3)}`, M + 3, cy + 28.5, UW - 6, 6);
-    cy += hCardH + 6;
+    doc.roundedRect(M, cy, UW, hCardH, 1, 1, "FD");
+    const colW_ = (UW - 4) / 2;
+    drawFeatureBlock("HISTORY & PATTERN", `${h.durationYears || 0}y ${h.durationMonths || 0}m | ${clean(h.pattern)}`, M + 2, cy + 4, colW_ - 4, 5);
+    drawFeatureBlock("LOCATION & SIDE", cleanArr(h.location, 3) + (h.frontalSide ? ` (F: ${h.frontalSide})` : "") + (h.temporalSide ? ` (T: ${h.temporalSide})` : ""), M + 2, cy + 11, colW_ - 4, 5);
+    drawFeatureBlock("PAIN CHARACTER", cleanArr(h.painNature, 3) + " | " + cleanArr(h.associated, 4), M + 2, cy + 18, colW_ - 4, 5);
+    drawFeatureBlock("SEVERITY & DURATION", `${clean(t.headache?.severity)} | ${clean(t.headache?.duration)}`, M + colW_ + 2, cy + 4, colW_ - 4, 5);
+    drawFeatureBlock("FREQUENCY", `${h.headacheDaysLastFourWeeks || 0} d/4wks | Meds: ${safeDay(h.medicineDaysLastFourWeeks)}`, M + colW_ + 2, cy + 11, colW_ - 4, 5);
+    drawFeatureBlock("AURA & PROD/POST", `Aura: ${t.aura?.hasAura === "Yes" ? "Yes" : "No"} | Prod: ${t.prodromal?.hasProdromal === "Yes" ? "Yes" : "No"} | Post: ${t.postdrome?.hasPostdrome === "Yes" ? "Yes" : "No"}`, M + colW_ + 2, cy + 18, colW_ - 4, 5);
+    drawFeatureBlock("TRIGGERS & RELIEF", `Trig: ${cleanArr(h.aggravating, 3)} | Rel: ${cleanArr(h.relief, 3)}`, M + 2, cy + 25, UW - 4, 5);
+    cy += hCardH + 4;
 
-    // --- Primary Headache Impression & Red Flags ---
-    ensureSpace(45);
-    const rfCardH = 40;
+    // --- Impression & Red Flags ---
+    const rfCardH_ = 32;
     doc.setDrawColor(...C_BORDER); doc.setFillColor(...C_WHITE);
-    doc.roundedRect(M, cy, cardW, rfCardH, 1.5, 1.5, "FD");
-    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(...C_ACCENT);
-    doc.text("PRIMARY IMPRESSION", M + 2, cy + 4.5);
-    const primaryItems = [
+    doc.roundedRect(M, cy, cardW, rfCardH_, 1, 1, "FD");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(6.5); doc.setTextColor(...C_ACCENT);
+    doc.text("PRIMARY IMPRESSION", M + 2, cy + 4);
+    const primItems = [
         ["Migraine (No Aura)", clean(diagRaw["migraineNoAura.status"])],
         ["Migraine (With Aura)", clean(diagRaw["migraineAura.status"])],
         ["Tension-Type HA", clean(diagRaw["tension.status"])],
         ["Cluster HA", clean(diagRaw["cluster.status"])]
     ];
-    let primY = cy + 9;
-    primaryItems.forEach(item => {
-        doc.setFont("helvetica", "bold"); doc.setFontSize(6); doc.setTextColor(...C_MUTED);
-        doc.text(item[0], M + 2, primY);
+    let pY = cy + 8;
+    primItems.forEach(item => {
+        doc.setFont("helvetica", "bold"); doc.setFontSize(5.5); doc.setTextColor(...C_MUTED);
+        doc.text(item[0], M + 2, pY);
         doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT);
-        doc.text(item[1], M + 40, primY);
-        primY += 3.5;
+        doc.text(item[1], M + 35, pY);
+        pY += 3;
     });
-    const uniqFeatures = [...new Set([...(diagRaw.migraineNoAuraCharacteristics || []), ...(diagRaw.tensionCharacteristics || []), ...(diagRaw.clusterSymptoms || [])])].map(clean).filter(x => x !== "—");
-    if (uniqFeatures.length > 0) {
-        doc.setFont("helvetica", "bold"); doc.setFontSize(6); doc.setTextColor(...C_MUTED);
-        doc.text("Features:", M + 2, primY + 0.5);
+    const uFeatures = [...new Set([...(diagRaw.migraineNoAuraCharacteristics || []), ...(diagRaw.tensionCharacteristics || []), ...(diagRaw.clusterSymptoms || [])])].map(clean).filter(x => x !== "—");
+    if (uFeatures.length > 0) {
+        doc.setFont("helvetica", "bold"); doc.setFontSize(5.5); doc.setTextColor(...C_MUTED);
+        doc.text("Features:", M + 2, pY + 1);
         doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT);
-        const featLines = doc.splitTextToSize(uniqFeatures.join(", "), cardW - 15);
-        doc.text(featLines.slice(0, 2), M + 15, primY + 0.5);
+        const fLines = doc.splitTextToSize(uFeatures.join(", "), cardW - 14);
+        doc.text(fLines.slice(0, 2), M + 12, pY + 1);
     }
 
-    doc.roundedRect(M + cardW + 4, cy, cardW, rfCardH, 1.5, 1.5, "FD");
-    const rfCount = redFlags.length;
-    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5);
-    doc.setTextColor(...(rfCount > 0 ? C_RED : C_ACCENT));
-    doc.text(rfCount > 0 ? "RED FLAGS DETECTED" : "RED FLAGS & SCREENING", M + cardW + 6, cy + 4.5);
-    doc.setFont("helvetica", "normal"); doc.setFontSize(6.5);
-    if (rfCount > 0) {
+    doc.setFillColor(...C_WHITE); // FIX: Ensure white fill before drawing the next card
+    doc.roundedRect(M + cardW + 4, cy, cardW, rfCardH_, 1, 1, "FD");
+    const rfC = redFlags.length;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(6.5);
+    doc.setTextColor(...(rfC > 0 ? C_RED : C_ACCENT));
+    doc.text(rfC > 0 ? "RED FLAGS DETECTED" : "RED FLAGS & SCREENING", M + cardW + 6, cy + 4);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(6);
+    if (rfC > 0) {
         doc.setTextColor(...C_RED);
-        const rfLines = doc.splitTextToSize(cleanArr(redFlags, 10), cardW - 10);
-        doc.text(rfLines.slice(0, 2), M + cardW + 6, cy + 8.5);
+        const rLines = doc.splitTextToSize(cleanArr(redFlags, 10), cardW - 10);
+        doc.text(rLines.slice(0, 2), M + cardW + 6, cy + 7.5);
     } else {
         doc.setTextColor(...C_MUTED);
-        doc.text("None reported", M + cardW + 6, cy + 8.5);
+        doc.text("None reported", M + cardW + 6, cy + 7.5);
     }
-    const hasInfection = redFlags.includes("Fever, acute symptoms") || exam.Gait === "Neck stiffness" || exam["Neck stifness"] === "Yes";
-    const hasICP = redFlags.includes("Onset in sleep/early morning") || exam.Papilloedema === "Yes";
-    const screenItems = [
-        ["Infection/ICP", `${hasInfection ? "Yes" : "No"}/${hasICP ? "Yes" : "No"}`],
+    const hasInf = redFlags.includes("Fever, acute symptoms") || exam.Gait === "Neck stiffness";
+    const hasICP_ = redFlags.includes("Onset in sleep/early morning") || exam.Papilloedema === "Yes";
+    const sItems = [
+        ["Infection/ICP", `${hasInf ? "Yes" : "No"}/${hasICP_ ? "Yes" : "No"}`],
         ["ENT / Eye", `${(exam["Tenderness over Sinus"] === "Yes" || exam["Tenderness over Sinus"] === "AN") ? "Abn" : "Normal"} / ${(exam["Eye Movement"] === "Yes" || exam["Eye Movement"] === "AN") ? "Abn" : "Normal"}`],
         ["Med Overuse", (parseInt(h.medicineDaysLastFourWeeks) > 10) ? "Risk" : "Normal"]
     ];
-    let itemY = cy + 18;
-    doc.setFontSize(6);
-    screenItems.forEach(row => {
+    let sY = cy + 16;
+    sItems.forEach(row => {
         doc.setFont("helvetica", "bold"); doc.setTextColor(...C_MUTED);
-        doc.text(row[0], M + cardW + 6, itemY);
+        doc.text(row[0], M + cardW + 6, sY);
         doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT);
-        doc.text(row[1], M + cardW + 35, itemY);
-        itemY += 3.5;
+        doc.text(row[1], M + cardW + 35, sY);
+        sY += 3.2;
     });
-    cy += rfCardH + 6;
+    cy += rfCardH_ + 4;
 
     // --- Examination & Investigation ---
-    ensureSpace(30);
     drawSectionTitle("Examination & Investigation");
-    cy += 2;
-    const examCardH = drawCard(M, cy, UW, "Examination Findings", [
+    const exH = drawCard(M, cy, UW, "Examination Findings", [
         ["Vitals/Growth", `Ht: ${clean(exam.height)}cm, Wt: ${clean(exam.weight)}kg, BMI: ${clean(exam.bmi)}, OFC: ${clean(exam.ofc)}cm`],
         ["BP / HR / Neuro", `${clean(exam.bpSystolic)}/${clean(exam.bpDiastolic)} | HR: ${clean(exam.heartRate)} | Papilloedema: ${clean(exam.Papilloedema)} | CN Palsy: ${clean(exam.crNvPalsy)}`],
-        ["Gait / Eye / ENT", `Gait: ${clean(exam.Gait)} | Eye: ${clean(exam["Eye Movement"])} | Sinus: ${clean(exam["Tenderness over Sinus"])} | Teeth: ${clean(exam.Teeth)}`],
-        ["Suggested Tests", clean(exam.tests)]
+        ["Gait / Eye / ENT", `Gait: ${clean(exam.Gait)} | Eye: ${clean(exam["Eye Movement"])} | Sinus: ${clean(exam["Tenderness over Sinus"])} | Teeth: ${clean(exam.Teeth)}`]
     ]);
-    cy += examCardH + 4;
-
-    // --- Finalize: Simple Footer ---
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFont("helvetica", "italic"); doc.setFontSize(6); doc.setTextColor(150, 150, 150);
-        doc.text(`Page ${i} of ${pageCount} | Beat Headache Clinical Documentation Support`, M, PH - 10);
-    }
+    cy += exH + 2;
 
     doc.save(`BeatHeadache-Doctor-Clinical-Report-${p.registrationCode || "Report"}.pdf`);
 }
