@@ -38,8 +38,12 @@ function getAuthErrorMessage(code) {
 export default function DoctorLoginPrivatePage() {
   const [statusMessage, setStatusMessage] = useState(null); // { type: 'error'|'pending'|'blocked', text }
   const [loading, setLoading] = useState(false);
+  const [testUsername, setTestUsername] = useState("");
+  const [testPassword, setTestPassword] = useState("");
+  const [testError, setTestError] = useState(null);
+
   const navigate = useNavigate();
-  const { firebaseUser, userProfile, loading: authLoading, refreshUserProfile } = useAuth();
+  const { firebaseUser, userProfile, loading: authLoading, refreshUserProfile, loginWithTestCredentials } = useAuth();
 
   // If already logged in and approved, redirect immediately
   useEffect(() => {
@@ -156,6 +160,24 @@ export default function DoctorLoginPrivatePage() {
     }
   };
 
+  const handleTestLogin = async (e) => {
+    e.preventDefault();
+    setTestError(null);
+    setLoading(true);
+    try {
+      const success = await loginWithTestCredentials(testUsername, testPassword);
+      if (success) {
+        navigate("/doctor/dashboard", { replace: true });
+      } else {
+        setTestError("Invalid test username or password.");
+      }
+    } catch (err) {
+      setTestError("Failed to sign in with test account.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-[80vh] flex items-center justify-center bg-gray-50 px-4">
       <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full border border-gray-100 space-y-6">
@@ -205,6 +227,50 @@ export default function DoctorLoginPrivatePage() {
           <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
           {loading ? "Signing in…" : "Sign in with Google"}
         </button>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+          <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-2 text-gray-400">Or testing login</span></div>
+        </div>
+
+        <form onSubmit={handleTestLogin} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Username</label>
+            <input 
+              type="text"
+              value={testUsername}
+              onChange={(e) => setTestUsername(e.target.value)}
+              placeholder="doctor"
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Password</label>
+            <input 
+              type="password"
+              value={testPassword}
+              onChange={(e) => setTestPassword(e.target.value)}
+              placeholder="test123"
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all text-sm"
+            />
+          </div>
+          {testError && (
+            <div className="flex items-center gap-2 text-red-600 text-xs font-bold px-1">
+              <AlertCircle className="w-3 h-3" />
+              {testError}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gray-800 text-white px-4 py-3 rounded-xl font-bold text-sm hover:bg-gray-900 transition-colors shadow-sm disabled:opacity-50"
+          >
+            Login with Test Account
+          </button>
+          <p className="text-[10px] text-gray-400 text-center italic">
+            Temporary testing login. Remove before production release.
+          </p>
+        </form>
 
         <div className="text-center text-sm text-gray-500">
           Not registered yet?{" "}

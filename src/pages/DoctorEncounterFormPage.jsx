@@ -197,29 +197,29 @@ export default function DoctorEncounterFormPage() {
 
           {/* Consent Checkboxes */}
           <div className="space-y-3">
-            <label className="flex gap-3 cursor-pointer p-3 bg-slate-50/30 hover:bg-slate-50 rounded-xl border border-slate-200 hover:border-sky-300 transition-all duration-300">
+            <label className="flex gap-4 cursor-pointer p-4 bg-slate-50/30 hover:bg-slate-50 rounded-2xl border border-slate-200 hover:border-sky-300 transition-all duration-300 min-h-[48px]">
               <input 
                 type="checkbox" 
                 checked={checked1}
                 onChange={(e) => setChecked1(e.target.checked)}
-                className="h-5 w-5 mt-0.5 accent-sky-600 cursor-pointer"
+                className="h-5 w-5 mt-0.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500 transition-transform active:scale-90 shrink-0 cursor-pointer"
               />
-              <div className="space-y-0.5 select-none">
-                <p className="text-xs sm:text-sm font-bold text-slate-800">Confirm Parent/Guardian Consent</p>
-                <p className="text-[10px] sm:text-xs text-slate-500 leading-normal">I confirm that the parent/guardian has given consent to collect, store, and process the child’s personal and medical information for clinical assessment, follow-up, report generation, and approved review/research workflows as described above.</p>
+              <div className="space-y-1 select-none">
+                <p className="text-sm font-bold text-slate-800">Confirm Parent/Guardian Consent</p>
+                <p className="text-xs text-slate-500 leading-relaxed">I confirm that the parent/guardian has given consent to collect, store, and process the child’s personal and medical information for clinical assessment, follow-up, report generation, and approved review/research workflows as described above.</p>
               </div>
             </label>
 
-            <label className="flex gap-3 cursor-pointer p-3 bg-slate-50/30 hover:bg-slate-50 rounded-xl border border-slate-200 hover:border-sky-300 transition-all duration-300">
+            <label className="flex gap-4 cursor-pointer p-4 bg-slate-50/30 hover:bg-slate-50 rounded-2xl border border-slate-200 hover:border-sky-300 transition-all duration-300 min-h-[48px]">
               <input 
                 type="checkbox" 
                 checked={checked2}
                 onChange={(e) => setChecked2(e.target.checked)}
-                className="h-5 w-5 mt-0.5 accent-sky-600 cursor-pointer"
+                className="h-5 w-5 mt-0.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500 transition-transform active:scale-90 shrink-0 cursor-pointer"
               />
-              <div className="space-y-0.5 select-none">
-                <p className="text-xs sm:text-sm font-bold text-slate-800">Understand Emergency Disclaimer</p>
-                <p className="text-[10px] sm:text-xs text-slate-500 leading-normal">I understand that emergency symptoms require urgent medical care and that this system does not replace a qualified doctor’s clinical judgement.</p>
+              <div className="space-y-1 select-none">
+                <p className="text-sm font-bold text-slate-800">Understand Emergency Disclaimer</p>
+                <p className="text-xs text-slate-500 leading-relaxed">I understand that emergency symptoms require urgent medical care and that this system does not replace a qualified doctor’s clinical judgement.</p>
               </div>
             </label>
           </div>

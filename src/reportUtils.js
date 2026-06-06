@@ -535,183 +535,6 @@ export function generatePatientReportPdf(form, fresshTotal) {
 
     y += hCardHeight + 5;
 
-    // Primary & Secondary Headache Sections Side-by-Side (height = 46)
-    const cardH = 46;
-    
-    // Card A: Primary Impression
-    doc.setDrawColor(...C_BORDER); doc.setFillColor(...C_WHITE);
-    doc.roundedRect(M_LEFT, y, cardW, cardH, 1.5, 1.5, "FD");
-    
-    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(...C_ACCENT);
-    doc.text("PRIMARY HEADACHE IMPRESSION", M_LEFT + 2, y + 4.5);
-    
-    doc.setFont("helvetica", "bold"); doc.setFontSize(6.5); doc.setTextColor(...C_MUTED); doc.text("Suggested Category:", M_LEFT + 2, y + 9);
-    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(...C_TEXT);
-    const likelyLines = doc.splitTextToSize(cleanPatientSummaryText(diag.likelyType), cardW - 4);
-    doc.text(likelyLines.slice(0, 2), M_LEFT + 2, y + 12.5);
-    
-    doc.setFont("helvetica", "bold"); doc.setFontSize(6.5); doc.setTextColor(...C_MUTED); doc.text("Classification Criteria Status:", M_LEFT + 2, y + 20);
-    const diagData = form.diagnosis || {};
-    const primaryItems = [
-        ["Migraine (No Aura)", cleanPatientSummaryText(diagData["migraineNoAura.status"])],
-        ["Migraine (With Aura)", cleanPatientSummaryText(diagData["migraineAura.status"])],
-        ["Tension-Type HA", cleanPatientSummaryText(diagData["tension.status"])],
-        ["Cluster HA", cleanPatientSummaryText(diagData["cluster.status"])]
-    ];
-    let primY = y + 23;
-    primaryItems.forEach(item => {
-        doc.setFont("helvetica", "bold"); doc.setFontSize(6); doc.setTextColor(...C_MUTED);
-        doc.text(item[0], M_LEFT + 2, primY);
-        doc.setFont("helvetica", "normal"); doc.setFontSize(6); doc.setTextColor(...C_TEXT);
-        doc.text(item[1], M_LEFT + 40, primY);
-        primY += 3.5;
-    });
-    
-    // Supporting clinical features
-    const features = [
-        ...(diagData.migraineNoAuraCharacteristics || []),
-        ...(diagData.tensionCharacteristics || []),
-        ...(diagData.clusterSymptoms || [])
-    ].filter(Boolean);
-    const uniqFeatures = [...new Set(features)].map(cleanPatientSummaryText).filter(x => x !== "None");
-    if (uniqFeatures.length > 0) {
-        doc.setFont("helvetica", "bold"); doc.setFontSize(6); doc.setTextColor(...C_MUTED);
-        doc.text("Supporting Features:", M_LEFT + 2, primY + 0.5);
-        doc.setFont("helvetica", "normal"); doc.setFontSize(6); doc.setTextColor(...C_TEXT);
-        const featText = uniqFeatures.join(", ");
-        const featLines = doc.splitTextToSize(featText, cardW - 4);
-        doc.text(featLines.slice(0, 2), M_LEFT + 2, primY + 3.2);
-    }
-    
-    // Card B: Secondary Headache Screen & Red Flags
-    doc.setDrawColor(...C_BORDER); doc.setFillColor(...C_WHITE);
-    doc.roundedRect(M_LEFT + cardW + 4, y, cardW, cardH, 1.5, 1.5, "FD");
-    
-    const rfCount = redFlags.length;
-    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5);
-    if (rfCount > 0) {
-        doc.setTextColor(220, 38, 38); // Coral/Red
-        doc.text("RED FLAGS (REPORTED):", M_LEFT + cardW + 6, y + 4.5);
-    } else {
-        doc.setTextColor(...C_ACCENT);
-        doc.text("RED FLAGS & SECONDARY SCREEN", M_LEFT + cardW + 6, y + 4.5);
-    }
-    
-    doc.setFont("helvetica", "normal"); doc.setFontSize(6.5);
-    if (rfCount > 0) {
-        doc.setTextColor(220, 38, 38);
-        const rfLines = doc.splitTextToSize(cleanPatientSummaryText(redFlags.join(", ")), cardW - 10);
-        doc.text(rfLines.slice(0, 2), M_LEFT + cardW + 6, y + 8);
-    } else {
-        doc.setTextColor(...C_MUTED);
-        doc.text("None reported", M_LEFT + cardW + 6, y + 8);
-    }
-    
-    // Compact screening items
-    const hasInfection = redFlags.includes("Fever, acute symptoms") || exam.Gait === "Neck stiffness" || exam["Neck stifness"] === "Yes" || exam.NeckStiffness === "Yes"; 
-    const hasTrauma = redFlags.includes("Head trauma");
-    const hasICP = redFlags.includes("Onset in sleep/early morning") || exam.Papilloedema === "Yes" || exam.Papilloedema === "Present";
-    
-    const itemsCol1 = [
-        ["Infection Signs", hasInfection ? "Yes" : "Normal"],
-        ["Head Trauma", hasTrauma ? "Yes" : "No history"],
-        ["Raised ICP", hasICP ? "Yes" : "Normal"]
-    ];
-    const itemsCol2 = [
-        ["ENT / Sinus", (exam["Tenderness over Sinus"] === "Yes" || exam["Tenderness over Sinus"] === "AN") ? "Abnormal" : "Normal"],
-        ["Eye / Vision", (exam["Eye Movement"] === "Yes" || exam["Eye Movement"] === "AN" || redFlags.includes("Visual disturbances") || redFlags.includes("Eye movement abnormalities")) ? "Abnormal" : "Normal"],
-        ["Med Overuse", (parseInt(h.medicineDaysLastFourWeeks) > 10 || parseInt(h.medicineDaysLastWeek) > 3) ? "Risk" : "Normal"]
-    ];
-    
-    let itemY = y + 16;
-    doc.setFontSize(6);
-    itemsCol1.forEach((item, idx) => {
-        // Column 1
-        doc.setFont("helvetica", "bold"); doc.setTextColor(...C_MUTED);
-        doc.text(item[0], M_LEFT + cardW + 6, itemY);
-        doc.setFont("helvetica", "normal"); 
-        doc.setTextColor(item[1] === "Yes" ? 220 : 15, item[1] === "Yes" ? 38 : 23, item[1] === "Yes" ? 38 : 42);
-        doc.text(item[1], M_LEFT + cardW + 28, itemY);
-        
-        // Column 2
-        const item2 = itemsCol2[idx];
-        doc.setFont("helvetica", "bold"); doc.setTextColor(...C_MUTED);
-        doc.text(item2[0], M_LEFT + cardW + 46, itemY);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(item2[1] === "Normal" ? 15 : 220, item2[1] === "Normal" ? 23 : 38, item2[1] === "Normal" ? 42 : 38);
-        doc.text(item2[1], M_LEFT + cardW + 72, itemY);
-        
-        itemY += 3.6;
-    });
-    
-    // User manual secondary notes cleaner
-    const cleanUserNotesOnly = (text) => {
-        if (!text) return "";
-        const isGeneratedJargon = (line) => {
-            const l = line.toLowerCase();
-            const patterns = [
-                "suggested because",
-                "previous diagnosis",
-                "previous treatment",
-                "referral source",
-                "developmental concern",
-                "developmental history concern",
-                "prodromal symptoms",
-                "aura symptoms",
-                "suggested review",
-                "postdrome reported",
-                "chronic headache history",
-                "doctor review note",
-                "medicine used for headache",
-                "frequent medicine use",
-                "severity score from page",
-                "migraine-supporting",
-                "lifestyle note",
-                "previous response:",
-                "premonitory symptoms",
-                "headache impact reported",
-                "headache reported yesterday",
-                "medicine taken yesterday",
-                "suggested check",
-                "medication safety warning",
-                "red flag selected",
-                "clinical/research review",
-                "clinician confirmation",
-                "not a diagnosis",
-                "doctor must",
-                "clinician must",
-                "see full clinical",
-                "possible non-primary",
-                "possible ent-related",
-                "possible secondary",
-                "possible tm joint-related",
-                "check current/past",
-                "medication safety"
-            ];
-            return patterns.some(p => l.includes(p));
-        };
-
-        const lines = String(text)
-            .split(/\n+|\s*\|\s*/)
-            .map(line => line.trim())
-            .filter(Boolean)
-            .filter(line => !isGeneratedJargon(line));
-        
-        return lines.join(", ");
-    };
-
-    // Secondary Notes if available
-    const secNotes = cleanUserNotesOnly(form.medical?.secondaryStatus);
-    if (secNotes && secNotes !== "None" && secNotes.trim() !== "") {
-        doc.setFont("helvetica", "bold"); doc.setTextColor(...C_MUTED);
-        doc.text("Secondary Notes:", M_LEFT + cardW + 6, itemY + 0.5);
-        doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT);
-        const secNotesLines = doc.splitTextToSize(secNotes, cardW - 10);
-        doc.text(secNotesLines.slice(0, 2), M_LEFT + cardW + 6, itemY + 3.5);
-    }
-    
-    y += cardH + 5;
-
     // FRESSH Lifestyle
     y = drawSectionTitle("FRESSH Lifestyle", y);
     y += 2;
@@ -745,9 +568,181 @@ export function generatePatientReportPdf(form, fresshTotal) {
     
     y += 12;
 
+    // Primary & Secondary Headache Sections Side-by-Side (height = 55)
+    const impressionH = 55; // Slightly taller
+    doc.setDrawColor(...C_BORDER); doc.setFillColor(...C_WHITE);
+    doc.roundedRect(M_LEFT, y, cardW, impressionH, 1.5, 1.5, "FD");
+    
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(...C_ACCENT);
+    doc.text("PRIMARY HEADACHE IMPRESSION", M_LEFT + 2, y + 5);
+    
+    doc.setFont("helvetica", "bold"); doc.setFontSize(7); doc.setTextColor(...C_MUTED); doc.text("Suggested Category:", M_LEFT + 2, y + 10);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(...C_TEXT);
+    const likelyLines = doc.splitTextToSize(cleanPatientSummaryText(diag.likelyType), cardW - 4);
+    doc.text(likelyLines.slice(0, 2), M_LEFT + 2, y + 14);
+    
+    doc.setFont("helvetica", "bold"); doc.setFontSize(7); doc.setTextColor(...C_MUTED); doc.text("Classification Status:", M_LEFT + 2, y + 23);
+    const diagData = form.diagnosis || {};
+    const primaryItems = [
+        ["Migraine (No Aura)", cleanPatientSummaryText(diagData["migraineNoAura.status"])],
+        ["Migraine (With Aura)", cleanPatientSummaryText(diagData["migraineAura.status"])],
+        ["Tension-Type HA", cleanPatientSummaryText(diagData["tension.status"])],
+        ["Cluster HA", cleanPatientSummaryText(diagData["cluster.status"])]
+    ];
+    let primY = y + 27;
+    primaryItems.forEach(item => {
+        doc.setFont("helvetica", "bold"); doc.setFontSize(6.5); doc.setTextColor(...C_MUTED);
+        doc.text(item[0], M_LEFT + 2, primY);
+        doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); doc.setTextColor(...C_TEXT);
+        doc.text(item[1], M_LEFT + 40, primY);
+        primY += 4;
+    });
+    
+    // Supporting clinical features
+    const features = [
+        ...(diagData.migraineNoAuraCharacteristics || []),
+        ...(diagData.tensionCharacteristics || []),
+        ...(diagData.clusterSymptoms || [])
+    ].filter(Boolean);
+    const uniqFeatures = [...new Set(features)].map(cleanPatientSummaryText).filter(x => x !== "None");
+    if (uniqFeatures.length > 0) {
+        doc.setFont("helvetica", "bold"); doc.setFontSize(6.5); doc.setTextColor(...C_MUTED);
+        doc.text("Supporting Features:", M_LEFT + 2, primY + 1);
+        doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); doc.setTextColor(...C_TEXT);
+        const featText = uniqFeatures.join(", ");
+        const featLines = doc.splitTextToSize(featText, cardW - 4);
+        doc.text(featLines.slice(0, 2), M_LEFT + 2, primY + 4.5);
+    }
+    
+    // Card B: Secondary Headache Screen & Red Flags
+    doc.setDrawColor(...C_BORDER); doc.setFillColor(...C_WHITE);
+    doc.roundedRect(M_LEFT + cardW + 4, y, cardW, impressionH, 1.5, 1.5, "FD");
+    
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+    doc.setTextColor(...C_ACCENT);
+    doc.text("RED FLAGS & SECONDARY SCREEN", M_LEFT + cardW + 6, y + 5);
+    
+    // Red Flags as chips/boxes
+    let rfY = y + 9;
+    let rfX = M_LEFT + cardW + 6;
+    if (redFlags.length > 0) {
+        doc.setFontSize(6);
+        redFlags.forEach((flag, idx) => {
+            const flagText = cleanPatientSummaryText(flag);
+            const txtWidth = doc.getTextWidth(flagText);
+            const chipW = txtWidth + 4;
+            
+            if (rfX + chipW > M_LEFT + cardW * 2 + 4) {
+                rfX = M_LEFT + cardW + 6;
+                rfY += 5;
+            }
+            
+            if (rfY < y + 22) { // Only draw if space remains
+                doc.setFillColor(254, 226, 226); // Soft red
+                doc.setDrawColor(248, 113, 113);
+                doc.roundedRect(rfX, rfY, chipW, 4, 1, 1, "FD");
+                doc.setTextColor(153, 27, 27);
+                doc.text(flagText, rfX + 2, rfY + 3);
+                rfX += chipW + 2;
+            }
+        });
+    } else {
+        doc.setFillColor(220, 252, 231); // Soft green
+        doc.setDrawColor(74, 222, 128);
+        doc.roundedRect(rfX, rfY, 25, 4, 1, 1, "FD");
+        doc.setTextColor(21, 128, 61);
+        doc.text("None reported", rfX + 2, rfY + 3);
+    }
+    
+    // Compact screening items
+    const hasInfection = redFlags.includes("Fever, acute symptoms") || exam.Gait === "Neck stiffness" || exam["Neck stifness"] === "Yes" || exam.NeckStiffness === "Yes"; 
+    const hasTrauma = redFlags.includes("Head trauma");
+    const hasICP = redFlags.includes("Onset in sleep/early morning") || exam.Papilloedema === "Yes" || exam.Papilloedema === "Present";
+    
+    const itemsCol1 = [
+        ["Infection Signs", hasInfection ? "Yes" : "Normal"],
+        ["Head Trauma", hasTrauma ? "Yes" : "No history"],
+        ["Raised ICP", hasICP ? "Yes" : "Normal"]
+    ];
+    const itemsCol2 = [
+        ["ENT / Sinus", (exam["Tenderness over Sinus"] === "Yes" || exam["Tenderness over Sinus"] === "AN") ? "Abnormal" : "Normal"],
+        ["Eye / Vision", (exam["Eye Movement"] === "Yes" || exam["Eye Movement"] === "AN" || redFlags.includes("Visual disturbances") || redFlags.includes("Eye movement abnormalities")) ? "Abnormal" : "Normal"],
+        ["Med Overuse", (parseInt(h.medicineDaysLastFourWeeks) > 10 || parseInt(h.medicineDaysLastWeek) > 3) ? "Risk" : "Normal"]
+    ];
+    
+    let itemY = y + 27;
+    doc.setFontSize(6.5);
+    itemsCol1.forEach((item, idx) => {
+        // Column 1
+        doc.setFont("helvetica", "bold"); doc.setTextColor(...C_MUTED);
+        doc.text(item[0], M_LEFT + cardW + 6, itemY);
+        doc.setFont("helvetica", "normal"); 
+        doc.setTextColor(item[1] === "Yes" ? 220 : 15, item[1] === "Yes" ? 38 : 23, item[1] === "Yes" ? 38 : 42);
+        doc.text(item[1], M_LEFT + cardW + 30, itemY);
+        
+        // Column 2
+        const item2 = itemsCol2[idx];
+        doc.setFont("helvetica", "bold"); doc.setTextColor(...C_MUTED);
+        doc.text(item2[0], M_LEFT + cardW + 48, itemY);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(item2[1] === "Normal" ? 15 : 220, item2[1] === "Normal" ? 23 : 38, item2[1] === "Normal" ? 42 : 38);
+        doc.text(item2[1], M_LEFT + cardW + 74, itemY);
+        
+        itemY += 4;
+    });
+    
+    // User manual secondary notes cleaner
+    const cleanUserNotesOnly = (text) => {
+        if (!text) return "";
+        const isGeneratedJargon = (line) => {
+            const l = line.toLowerCase();
+            const patterns = [
+                "suggested because", "previous diagnosis", "previous treatment",
+                "referral source", "developmental concern", "developmental history concern",
+                "prodromal symptoms", "aura symptoms", "suggested review", "postdrome reported",
+                "chronic headache history", "doctor review note", "medicine used for headache",
+                "frequent medicine use", "severity score from page", "migraine-supporting",
+                "lifestyle note", "previous response:", "premonitory symptoms",
+                "headache impact reported", "headache reported yesterday", "medicine taken yesterday",
+                "suggested check", "medication safety warning", "red flag selected",
+                "clinical/research review", "clinician confirmation", "not a diagnosis",
+                "doctor must", "clinician must", "see full clinical",
+                "possible non-primary", "possible ent-related", "possible secondary",
+                "possible tm joint-related", "check current/past", "medication safety"
+            ];
+            return patterns.some(p => l.includes(p));
+        };
+
+        const lines = String(text)
+            .split(/\n+|\s*\|\s*/)
+            .map(line => line.trim())
+            .filter(Boolean)
+            .filter(line => !isGeneratedJargon(line));
+        
+        return lines.join(", ");
+    };
+
+    // Secondary Notes if available
+    const secNotes = cleanUserNotesOnly(form.medical?.secondaryStatus);
+    if (secNotes && secNotes !== "None" && secNotes.trim() !== "") {
+        doc.setFont("helvetica", "bold"); doc.setTextColor(...C_MUTED);
+        doc.text("Secondary Notes:", M_LEFT + cardW + 6, itemY + 1);
+        doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT);
+        const secNotesLines = doc.splitTextToSize(secNotes, cardW - 10);
+        doc.text(secNotesLines.slice(0, 2), M_LEFT + cardW + 6, itemY + 4.5);
+    }
+    
+    y += impressionH + 5;
+
     // Special Notice Footer
     const footY = P_HEIGHT - 44;
     const footH = 34;
+    
+    // Divider before Special Notes
+    doc.setDrawColor(...C_BORDER);
+    doc.setLineWidth(0.5);
+    doc.line(M_LEFT, footY - 4, P_WIDTH - M_RIGHT, footY - 4);
+
     doc.setFillColor(...C_BG_LIGHT);
     doc.setDrawColor(...C_BORDER);
     doc.setLineWidth(0.3);
@@ -756,11 +751,23 @@ export function generatePatientReportPdf(form, fresshTotal) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
     doc.setTextColor(...C_MUTED);
-    doc.text("SPECIAL NOTICE", M_LEFT + 3, footY + 4);
+    doc.text("SPECIAL NOTES & OBSERVATIONS", M_LEFT + 3, footY + 4);
     
     // Notes logic
     const collectSpecialNoticeFieldsOnly = (f) => {
         const notesList = [];
+
+        // Part 8 - Treatment Summary
+        const cp = f.clinicPath || {};
+        if (cp.homeTreatmentReceived === "Yes") {
+            const types = formatArraySmart(cp.homeTreatmentTypes);
+            notesList.push(`Home treatment: ${types} — ${cp.homeTreatmentOutcome || "No outcome"}`);
+        }
+        if (cp.previousTreatmentReceived === "Yes") {
+            const type = cp.previousTreatmentType || "Other";
+            notesList.push(`Previous treatment: ${type} — ${cp.previousTreatmentOutcomeNew || "No outcome"} — Cost: Rs. ${cp.previousTreatmentCost || "N/A"}`);
+        }
+
         const familyRows = f.familyRows || [];
         const mother = familyRows[0] || {};
         const father = familyRows[1] || {};

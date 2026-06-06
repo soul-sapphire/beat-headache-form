@@ -43,11 +43,16 @@ export function sanitizeForFirestore(data) {
 export function formatPatientId(firstName, lastName, birthYear, sequence) {
   const cleanStr = (s) => (s || '').replace(/[^a-zA-Z]/g, '').toUpperCase();
 
-  let fn = cleanStr(firstName);
-  fn = fn.length >= 2 ? fn.substring(0, 2) : fn.padEnd(2, 'X');
+  const getLetters = (str) => {
+    const s = cleanStr(str);
+    if (s.length >= 3) return s[0] + s[2];
+    if (s.length >= 2) return s[0] + s[1];
+    if (s.length === 1) return s[0] + 'X';
+    return 'XX';
+  };
 
-  let ln = cleanStr(lastName);
-  ln = ln.length >= 2 ? ln.substring(0, 2) : ln.padEnd(2, 'X');
+  const fn = getLetters(firstName);
+  const ln = getLetters(lastName);
 
   const seqStr = sequence < 1000 ? String(sequence).padStart(3, '0') : String(sequence);
 
@@ -102,10 +107,15 @@ export const createPatientShell = async (
     patientCode = formatPatientId(firstName, lastName, birthYear, sequenceNumber);
 
     const cleanStr = (s) => (s || '').replace(/[^a-zA-Z]/g, '').toUpperCase();
-    let fn = cleanStr(firstName);
-    fn = fn.length >= 2 ? fn.substring(0, 2) : fn.padEnd(2, 'X');
-    let ln = cleanStr(lastName);
-    ln = ln.length >= 2 ? ln.substring(0, 2) : ln.padEnd(2, 'X');
+    const getLetters = (str) => {
+      const s = cleanStr(str);
+      if (s.length >= 3) return s[0] + s[2];
+      if (s.length >= 2) return s[0] + s[1];
+      if (s.length === 1) return s[0] + 'X';
+      return 'XX';
+    };
+    const fn = getLetters(firstName);
+    const ln = getLetters(lastName);
 
     const patientRef = doc(db, 'patients', patientCode);
     transaction.set(patientRef, {

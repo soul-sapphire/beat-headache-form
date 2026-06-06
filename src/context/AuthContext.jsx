@@ -15,6 +15,15 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
 
+  const TEST_DOCTOR_PROFILE = {
+    uid: "test-doctor-local",
+    email: "testdoctor@beatheadache.local",
+    displayName: "Test Doctor",
+    role: "doctor",
+    approved: true,
+    status: "approved"
+  };
+
   // Fetch the Firestore user document for a given Firebase user
   const normalizeProfile = (uid, data) => {
     const approved =
@@ -69,13 +78,47 @@ export function AuthProvider({ children }) {
   );
 
   const logout = useCallback(async () => {
+    localStorage.removeItem("beatHeadacheTestUser");
     await signOut(auth);
     setFirebaseUser(null);
     setUserProfile(null);
     setAuthError(null);
   }, []);
 
+  const loginWithTestCredentials = useCallback(async (username, password) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      if (username === "doctor" && password === "test123") {
+        localStorage.setItem("beatHeadacheTestUser", "true");
+        setFirebaseUser({ uid: TEST_DOCTOR_PROFILE.uid, email: TEST_DOCTOR_PROFILE.email, displayName: TEST_DOCTOR_PROFILE.displayName });
+        setUserProfile(TEST_DOCTOR_PROFILE);
+        return true;
+      } else {
+        throw new Error("Invalid test username or password.");
+      }
+    } catch (err) {
+      setAuthError(err.message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
+    const checkTestUser = () => {
+      const isTestUser = localStorage.getItem("beatHeadacheTestUser");
+      if (isTestUser === "true") {
+        setFirebaseUser({ uid: TEST_DOCTOR_PROFILE.uid, email: TEST_DOCTOR_PROFILE.email, displayName: TEST_DOCTOR_PROFILE.displayName });
+        setUserProfile(TEST_DOCTOR_PROFILE);
+        setLoading(false);
+        return true;
+      }
+      return false;
+    };
+
+    if (checkTestUser()) return;
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       setLoading(true);
@@ -96,6 +139,7 @@ export function AuthProvider({ children }) {
     loading,
     authError,
     logout,
+    loginWithTestCredentials,
     refreshUserProfile,
     // Backward-compat aliases used in existing pages
     currentUser: firebaseUser,
