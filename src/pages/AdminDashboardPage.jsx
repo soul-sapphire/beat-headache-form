@@ -6,7 +6,7 @@ import {
   collection, query, where, getDocs, doc, updateDoc, serverTimestamp,
 } from "firebase/firestore";
 import {
-  LogOut, ShieldAlert, Check, X, Slash, BarChart2, Users, Loader2,
+  LogOut, ShieldAlert, Check, X, Slash, BarChart2, Users, Loader2, Mail, MessageSquare,
 } from "lucide-react";
 
 function DebugPanel({ userProfile }) {
@@ -218,7 +218,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Quick Links */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Link
             to="/admin/research-export"
             className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 hover:shadow-md transition-shadow flex items-start gap-4"
@@ -227,20 +227,51 @@ export default function AdminDashboardPage() {
               <BarChart2 className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-800">Research Dataset Export</h3>
-              <p className="text-sm text-gray-500 mt-1">
-                View and download the admin-only anonymised research CSV.
+              <h3 className="font-semibold text-gray-800">Research Export</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Download anonymised research CSV.
               </p>
             </div>
           </Link>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex items-start gap-4">
+
+          <Link
+            to="/admin/contact-messages"
+            className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 hover:shadow-md transition-shadow flex items-start gap-4"
+          >
+            <div className="bg-sky-50 p-3 rounded-xl text-sky-600">
+              <Mail className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-800">Contact Messages</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                View inquiries from the contact form.
+              </p>
+            </div>
+          </Link>
+
+          <Link
+            to="/admin/feedback"
+            className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 hover:shadow-md transition-shadow flex items-start gap-4"
+          >
+            <div className="bg-cyan-50 p-3 rounded-xl text-cyan-600">
+              <MessageSquare className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-800">User Feedback</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Review user feedback and suggestions.
+              </p>
+            </div>
+          </Link>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex items-start gap-4 opacity-60">
             <div className="bg-blue-50 p-3 rounded-xl text-blue-600">
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-800">Doctor Management</h3>
-              <p className="text-sm text-gray-500 mt-1">
-                Approve, reject, or suspend doctor accounts from the list above.
+              <h3 className="font-semibold text-gray-800">Management</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Approve or reject doctor accounts.
               </p>
             </div>
           </div>
