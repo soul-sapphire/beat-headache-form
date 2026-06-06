@@ -1727,7 +1727,19 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
         return ensureFormDefaults(init);
     });
     const [activeSiblingTab, setActiveSiblingTab] = useState(2); // Sibling 1 is index 2
+    const [activeParentTab, setActiveParentTab] = useState("mother");
     const [viewMode, setViewMode] = useState("doctor"); // "doctor" or "patient"
+
+    useEffect(() => {
+        const handleScrollTop = () => {
+            requestAnimationFrame(() => {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+                document.documentElement.scrollTop = 0;
+                document.body.scrollTop = 0;
+            });
+        };
+        handleScrollTop();
+    }, [page]);
 
     const update = (section, key, value) => {
         setForm((prevRaw) => {
@@ -1943,33 +1955,46 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                     <Field label="Other developmental concerns"><TextArea value={form.development.other} onChange={(v) => update("development", "other", v)} /></Field>
                 </Card>
 
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                    <Card title="Mother">
-                        <Grid>
-                            <Field label="Age"><TextInput type="number" value={form.familyRows[0].age} onChange={(v) => updateFamily(0, "age", v)} /></Field>
-                            <Field label="Occupation"><TextInput value={form.familyRows[0].occupation} onChange={(v) => updateFamily(0, "occupation", v)} /></Field>
-                        </Grid>
-                        <div className="mt-4">
-                            <Field label="Issues"><OptionGroup type="checkbox" options={familyIssues} value={form.familyRows[0].issues} onChange={(v) => updateFamily(0, "issues", v)} columns="grid-cols-2" /></Field>
-                        </div>
-                        <div className="mt-4">
-                            <Field label="Describe"><TextArea value={form.familyRows[0].describe} onChange={(v) => updateFamily(0, "describe", v)} /></Field>
-                        </div>
-                    </Card>
+                <Card title="Parents">
+                    <div className="flex gap-2 mb-6 p-1 bg-slate-100 rounded-2xl w-fit">
+                        {["mother", "father"].map((tab) => (
+                            <button
+                                key={tab}
+                                type="button"
+                                onClick={() => setActiveParentTab(tab)}
+                                className={`px-6 py-2 rounded-xl text-sm font-bold transition-all duration-300 capitalize ${
+                                    activeParentTab === tab 
+                                    ? "bg-white text-sky-600 shadow-sm" 
+                                    : "text-slate-500 hover:text-slate-700"
+                                }`}
+                            >
+                                {tab}
+                            </button>
+                        ))}
+                    </div>
 
-                    <Card title="Father">
-                        <Grid>
-                            <Field label="Age"><TextInput type="number" value={form.familyRows[1].age} onChange={(v) => updateFamily(1, "age", v)} /></Field>
-                            <Field label="Occupation"><TextInput value={form.familyRows[1].occupation} onChange={(v) => updateFamily(1, "occupation", v)} /></Field>
-                        </Grid>
-                        <div className="mt-4">
-                            <Field label="Issues"><OptionGroup type="checkbox" options={familyIssues} value={form.familyRows[1].issues} onChange={(v) => updateFamily(1, "issues", v)} columns="grid-cols-2" /></Field>
-                        </div>
-                        <div className="mt-4">
-                            <Field label="Describe"><TextArea value={form.familyRows[1].describe} onChange={(v) => updateFamily(1, "describe", v)} /></Field>
-                        </div>
-                    </Card>
-                </div>
+                    <div className="transition-all duration-300 ease-in-out">
+                        {activeParentTab === "mother" ? (
+                            <div className="space-y-6">
+                                <Grid>
+                                    <Field label="Mother's Age"><TextInput type="number" value={form.familyRows[0].age} onChange={(v) => updateFamily(0, "age", v)} /></Field>
+                                    <Field label="Occupation"><TextInput value={form.familyRows[0].occupation} onChange={(v) => updateFamily(0, "occupation", v)} /></Field>
+                                </Grid>
+                                <Field label="Issues"><OptionGroup type="checkbox" options={familyIssues} value={form.familyRows[0].issues} onChange={(v) => updateFamily(0, "issues", v)} columns="grid-cols-1 sm:grid-cols-2" /></Field>
+                                <Field label="Describe"><TextArea value={form.familyRows[0].describe} onChange={(v) => updateFamily(0, "describe", v)} /></Field>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                <Grid>
+                                    <Field label="Father's Age"><TextInput type="number" value={form.familyRows[1].age} onChange={(v) => updateFamily(1, "age", v)} /></Field>
+                                    <Field label="Occupation"><TextInput value={form.familyRows[1].occupation} onChange={(v) => updateFamily(1, "occupation", v)} /></Field>
+                                </Grid>
+                                <Field label="Issues"><OptionGroup type="checkbox" options={familyIssues} value={form.familyRows[1].issues} onChange={(v) => updateFamily(1, "issues", v)} columns="grid-cols-1 sm:grid-cols-2" /></Field>
+                                <Field label="Describe"><TextArea value={form.familyRows[1].describe} onChange={(v) => updateFamily(1, "describe", v)} /></Field>
+                            </div>
+                        )}
+                    </div>
+                </Card>
 
                 <Card title="Siblings">
                     <div className="flex gap-2 mb-6 p-1 bg-slate-100 rounded-2xl w-fit">
@@ -2789,7 +2814,7 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
     const pages = [renderPageOne, renderPageTwo, renderPageThree, renderPageFour, renderPageFive, renderPageSix, renderPageSeven];
 
     return (
-        <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 md:px-8">
+        <main className="min-h-screen bg-slate-50 px-4 py-8 pb-32 text-slate-900 md:px-8">
             <div className="mx-auto max-w-6xl space-y-6">
                 <header className="rounded-3xl bg-gradient-to-br from-sky-700 to-cyan-500 p-6 text-white shadow-lg md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
