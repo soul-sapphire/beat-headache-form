@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { FileText, Stethoscope, Download, Save, RefreshCw, Trash2, ShieldCheck, Eye, Activity, Database, User as UserIcon, Settings } from "lucide-react";
-import { 
-  generatePatientReportPdf, 
-  generateDoctorReportPdf, 
-  getSuggestedDiagnosisSummary, 
-  getRedFlagSummary,
-  getFresshInterpretation
+import {
+    generatePatientReportPdf,
+    generateDoctorReportPdf,
+    getSuggestedDiagnosisSummary,
+    getRedFlagSummary,
+    getFresshInterpretation
 } from "./reportUtils";
 import { downloadDeidentifiedCsv, downloadDeidentifiedJson } from "./exportUtils";
 
@@ -87,8 +87,8 @@ const associatedSymptoms = [
     "Anxiety – depression",
     "Attention issues",
     "Memory issues",
-    "Light Sensitivity",
-    "Sound Sensitivity",
+    "Photophobia",
+    "Phonophobia",
     "Vision issues/Diplopia",
     "Walking difficulty",
     "Tiring quickly",
@@ -99,6 +99,11 @@ const associatedSymptoms = [
     "Behavioral changes",
     "Balance issues",
 ];
+// Display labels for associated symptoms — maps state key to visible label
+const associatedSymptomsLabels = {
+    "Light Sensitivity": "Photophobia (sensitivity to light)",
+    "Sound Sensitivity": "Phonophobia (sensitivity to sound)",
+};
 
 const redFlagSystemic = ["Fever, acute symptoms", "Vomiting", "Weight loss", "Comorbidities"];
 const redFlagNeuro = [
@@ -358,7 +363,7 @@ function calculateDiagnosisStatuses(form) {
     const cNotAttr = diag["cluster.3"] === "Yes";
 
     // "Either or both" logic: at least 1 sign/symptom OR restlessness
-    const cSignsMet = cSympCount >= 1; 
+    const cSignsMet = cSympCount >= 1;
 
     if (cFreqAtt && cDur && cFreq && cNotAttr && cSignsMet) {
         statuses.cluster = "Confirmed";
@@ -406,7 +411,7 @@ function createRandomRealisticTestCase() {
             firstName: fName,
             lastName: lName,
             phone: randomPhone(),
-            whatsapp: Math.random() > 0.5 ? randomPhone() : null, 
+            whatsapp: Math.random() > 0.5 ? randomPhone() : null,
             email: randomEmail(fName, lName),
             registeredDate: todayISO(),
             age: String(age),
@@ -430,14 +435,19 @@ function createRandomRealisticTestCase() {
             other: "",
         },
         clinicPath: {
-            initiatedBy: pick(["Self / Parent", "Medical officer", "Specialist", "School", "Other"]),
+            referralSource: "",
+            referralSourceOther: "",
+            referralNotes: "",
+            initiatedBy: "",
+            initiatedByOther: "",
             seenBefore: pick(["No", "Yes"]),
             previousDiagnosisGiven: pick(["No", "Yes", "Not sure"]),
             previousTreatmentOutcome: pick(["No treatment given", "No improvement", "Some improvement", "Better", "Worse", "Not sure"]),
         },
         referral: {
-            source: pick(["Self / Parent", "Medical officer", "Specialist", "School", "Other"]),
-            notes: Math.random() > 0.5 ? "Referral for headache assessment." : "",
+            source: "",
+            notes: "",
+            other: "",
         },
         development: {
             grossMotorIssue: Math.random() > 0.9 ? "Yes" : "No",
@@ -576,11 +586,23 @@ function createRandomRealisticTestCase() {
         base.perinatal.other = Math.random() > 0.5 ? "No other complications" : "";
     }
 
-    if (base.clinicPath.initiatedBy === "Other") base.clinicPath.initiatedByOther = "Family friend";
+    const refSrc = pick(["No referral", "Medical officer", "Specialist", "School", "Other"]);
+    const refNotes = Math.random() > 0.5 ? "Referral for headache assessment." : "";
+    const refOther = refSrc === "Other" ? "Neighbor suggestion" : "";
+    const legacyRefSrc = refSrc === "No referral" ? "Self / Parent" : refSrc;
+
+    base.clinicPath.referralSource = refSrc;
+    base.clinicPath.referralSourceOther = refOther;
+    base.clinicPath.referralNotes = refNotes;
+    base.clinicPath.initiatedBy = legacyRefSrc;
+    base.clinicPath.initiatedByOther = refOther;
+
+    base.referral.source = legacyRefSrc;
+    base.referral.notes = refNotes;
+    base.referral.other = refOther;
+
     if (base.clinicPath.seenBefore === "Yes") base.clinicPath.seenBeforeWhere = pick(["GP / Medical officer", "Paediatrician", "Neurologist"]);
     if (base.clinicPath.previousDiagnosisGiven === "Yes") base.clinicPath.previousDiagnosis = "Suspected Tension Headache";
-
-    if (base.referral.source === "Other") base.referral.other = "Neighbor suggestion";
 
     if (base.development.grossMotorIssue === "Yes") base.development.grossMotorDescribe = "Walked slightly late";
     if (base.development.fineMotorIssue === "Yes") base.development.fineMotorDescribe = "Writing issues";
@@ -589,7 +611,7 @@ function createRandomRealisticTestCase() {
     if (base.time.prodromal.hasProdromal === "Yes") {
         base.time.prodromal.symptoms = pickMany(["Pallor", "Fatigue", "Irritability", "Mood change", "Yawning"], 1, 3);
     }
-    
+
     if (base.time.aura.hasAura === "Yes") {
         base.time.aura.symptoms = pickMany(["Visual", "Auditory", "Gustatory", "Motor", "Brainstem", "Retinal"], 1, 2);
         base.time.aura.duration = pick(["Less than 5 minutes", "5–60 minutes", "More than 60 minutes", "Not sure"]);
@@ -785,8 +807,10 @@ const applyForwardReflections = (input) => {
     }
 
     // Referral
-    if (next.referral.source) {
-        next.final.diagnosis = addNote(next.final.diagnosis, `Referral source: ${next.referral.source}.`);
+    const refSrc = next.clinicPath?.referralSource || next.referral?.source || next.clinicPath?.initiatedBy;
+    if (refSrc) {
+        const normalizedRefSrc = refSrc === "Self / Parent" ? "No referral" : refSrc;
+        next.final.diagnosis = addNote(next.final.diagnosis, `Referral source: ${normalizedRefSrc}.`);
     }
 
     // Developmental History
@@ -951,7 +975,7 @@ const applyForwardReflections = (input) => {
         );
         next.examination["Throat.describe"] = addNote(next.examination["Throat.describe"], "Suggested check: throat pain reported on Page 2.");
     }
-    
+
     // 10.1 TM joint pain under Exclude
     if (excludes.includes("TM joint pain")) {
         next.medical.secondaryStatus = addNote(
@@ -990,9 +1014,9 @@ const applyForwardReflections = (input) => {
     }
 
     // 13. B/L side or Allover location
-    const isBilateral = (locationsVal.includes("Frontal") && next.history.frontalSide === "B/L") || 
-                       (locationsVal.includes("Temporal") && next.history.temporalSide === "B/L") || 
-                       locationsVal.includes("Allover");
+    const isBilateral = (locationsVal.includes("Frontal") && next.history.frontalSide === "B/L") ||
+        (locationsVal.includes("Temporal") && next.history.temporalSide === "B/L") ||
+        locationsVal.includes("Allover");
     if (isBilateral) {
         next.diagnosis.tensionCharacteristics = addToList(next.diagnosis.tensionCharacteristics, "bilateral location");
     }
@@ -1349,13 +1373,16 @@ function createInitialState() {
             complications: [],
         },
         familyRows: [
-            { relation: "Mother", issues: [] }, 
-            { relation: "Father", issues: [] }, 
+            { relation: "Mother", issues: [] },
+            { relation: "Father", issues: [] },
             { relation: "Sibling 1", issues: [] },
             { relation: "Sibling 2", issues: [] },
             { relation: "Sibling 3", issues: [] }
         ],
         clinicPath: {
+            referralSource: "",
+            referralSourceOther: "",
+            referralNotes: "",
             initiatedBy: "",
             initiatedByOther: "",
             seenBefore: "",
@@ -1447,6 +1474,20 @@ function createInitialState() {
 function ensureFormDefaults(input = {}) {
     const fresh = createInitialState();
 
+    const normalizeSource = (src) => {
+        if (!src) return "";
+        const s = String(src).trim();
+        if (s === "Self / Parent" || s === "Self/Parent" || s.toLowerCase() === "self / parent" || s.toLowerCase() === "self/parent" || s === "No referral") {
+            return "No referral";
+        }
+        return s;
+    };
+
+    const rawRefSrc = input.clinicPath?.referralSource || input.referral?.source || input.clinicPath?.initiatedBy || "";
+    const refSrcNormalized = normalizeSource(rawRefSrc);
+    const refSrcOther = input.clinicPath?.referralSourceOther || input.referral?.other || input.clinicPath?.initiatedByOther || "";
+    const refNotesVal = input.clinicPath?.referralNotes || input.referral?.notes || "";
+
     return {
         ...fresh,
         ...input,
@@ -1494,8 +1535,22 @@ function ensureFormDefaults(input = {}) {
             }))
             : fresh.familyRows,
 
-        clinicPath: { ...fresh.clinicPath, ...(input.clinicPath || {}) },
-        referral: { ...fresh.referral, ...(input.referral || {}) },
+        clinicPath: {
+            ...fresh.clinicPath,
+            ...(input.clinicPath || {}),
+            referralSource: refSrcNormalized,
+            referralSourceOther: refSrcOther,
+            referralNotes: refNotesVal,
+            initiatedBy: refSrcNormalized === "No referral" ? "Self / Parent" : refSrcNormalized,
+            initiatedByOther: refSrcOther,
+        },
+        referral: {
+            ...fresh.referral,
+            ...(input.referral || {}),
+            source: refSrcNormalized === "No referral" ? "Self / Parent" : refSrcNormalized,
+            other: refSrcOther,
+            notes: refNotesVal,
+        },
         development: { ...fresh.development, ...(input.development || {}) },
         impact: { ...fresh.impact, ...(input.impact || {}) },
         yesterday: { ...fresh.yesterday, ...(input.yesterday || {}) },
@@ -1634,8 +1689,8 @@ function SeverityFaceSelector({ value, onChange }) {
                         type="button"
                         onClick={() => onChange(opt.value)}
                         className={`flex flex-col items-center p-6 md:p-8 min-h-[180px] rounded-[2rem] border-2 transition-all duration-500 text-center space-y-4
-                            ${isSelected 
-                                ? `${opt.classes} border-opacity-100 ring-8 shadow-xl scale-[1.05] z-10` 
+                            ${isSelected
+                                ? `${opt.classes} border-opacity-100 ring-8 shadow-xl scale-[1.05] z-10`
                                 : "bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50 opacity-80 hover:opacity-100"
                             }`}
                     >
@@ -1727,7 +1782,6 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
         return ensureFormDefaults(init);
     });
     const [activeSiblingTab, setActiveSiblingTab] = useState(2); // Sibling 1 is index 2
-    const [activeParentTab, setActiveParentTab] = useState("mother");
     const [viewMode, setViewMode] = useState("doctor"); // "doctor" or "patient"
 
     useEffect(() => {
@@ -1744,8 +1798,8 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
     const update = (section, key, value) => {
         setForm((prevRaw) => {
             const prev = ensureFormDefaults(prevRaw);
-            const next = { 
-                ...prev, 
+            const next = {
+                ...prev,
                 [section]: { ...prev[section], [key]: value },
                 meta: {
                     ...prev.meta,
@@ -1762,8 +1816,8 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
             const prev = ensureFormDefaults(prevRaw);
             const rows = [...prev.familyRows];
             rows[index] = { ...rows[index], [key]: value };
-            const next = { 
-                ...prev, 
+            const next = {
+                ...prev,
                 familyRows: rows,
                 meta: {
                     ...prev.meta,
@@ -1818,13 +1872,13 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
         }
         if (!f.time.headache.duration && !f.history.episodeDuration) missing.push("Headache episode duration");
         if (!f.time.headache.severity) missing.push("Pain severity");
-        
-        const hasFreq = toNumber(f.history.headacheDaysLastFourWeeks) > 0 || 
-                        toNumber(f.history.perMonth) > 0 || 
-                        toNumber(f.history.perWeek) > 0 || 
-                        toNumber(f.history.perDay) > 0;
+
+        const hasFreq = toNumber(f.history.headacheDaysLastFourWeeks) > 0 ||
+            toNumber(f.history.perMonth) > 0 ||
+            toNumber(f.history.perWeek) > 0 ||
+            toNumber(f.history.perDay) > 0;
         if (!hasFreq) missing.push("Headache frequency (days/month)");
-        
+
         if (!f.consent.reportConsent) missing.push("Report use consent");
 
         return {
@@ -1888,7 +1942,7 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                             <div className="flex gap-3 items-center mt-1">
                                 <div className="flex items-center gap-1.5 flex-1">
                                     <span className="text-sm font-semibold text-slate-500">P</span>
-                                    <input 
+                                    <input
                                         type="number"
                                         min="0"
                                         value={form.perinatal?.pregnancyNumber ?? ""}
@@ -1902,7 +1956,7 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                 </div>
                                 <div className="flex items-center gap-1.5 flex-1">
                                     <span className="text-sm font-semibold text-slate-500">C</span>
-                                    <input 
+                                    <input
                                         type="number"
                                         min="0"
                                         value={form.perinatal?.childNumber ?? ""}
@@ -1945,55 +1999,32 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                 <Card title="Developmental History">
                     <Field label="Gross motor issue?"><OptionGroup options={yesNo} value={form.development.grossMotorIssue} onChange={(v) => update("development", "grossMotorIssue", v)} columns="md:grid-cols-2" /></Field>
                     {form.development.grossMotorIssue === "Yes" && <Field label="Describe gross motor issue"><TextArea value={form.development.grossMotorDescribe} onChange={(v) => update("development", "grossMotorDescribe", v)} /></Field>}
-                    
+
                     <Field label="Fine motor issue?"><OptionGroup options={yesNo} value={form.development.fineMotorIssue} onChange={(v) => update("development", "fineMotorIssue", v)} columns="md:grid-cols-2" /></Field>
                     {form.development.fineMotorIssue === "Yes" && <Field label="Describe fine motor issue"><TextArea value={form.development.fineMotorDescribe} onChange={(v) => update("development", "fineMotorDescribe", v)} /></Field>}
-                    
+
                     <Field label="Speech issue?"><OptionGroup options={yesNo} value={form.development.speechIssue} onChange={(v) => update("development", "speechIssue", v)} columns="md:grid-cols-2" /></Field>
                     {form.development.speechIssue === "Yes" && <Field label="Describe speech issue"><TextArea value={form.development.speechDescribe} onChange={(v) => update("development", "speechDescribe", v)} /></Field>}
-                    
+
                     <Field label="Other developmental concerns"><TextArea value={form.development.other} onChange={(v) => update("development", "other", v)} /></Field>
                 </Card>
 
-                <Card title="Parents">
-                    <div className="flex gap-2 mb-6 p-1 bg-slate-100 rounded-2xl w-fit">
-                        {["mother", "father"].map((tab) => (
-                            <button
-                                key={tab}
-                                type="button"
-                                onClick={() => setActiveParentTab(tab)}
-                                className={`px-6 py-2 rounded-xl text-sm font-bold transition-all duration-300 capitalize ${
-                                    activeParentTab === tab 
-                                    ? "bg-white text-sky-600 shadow-sm" 
-                                    : "text-slate-500 hover:text-slate-700"
-                                }`}
-                            >
-                                {tab}
-                            </button>
-                        ))}
-                    </div>
+                <Card title="Mother's Details">
+                    <Grid>
+                        <Field label="Mother's Age"><TextInput type="number" value={form.familyRows[0].age} onChange={(v) => updateFamily(0, "age", v)} /></Field>
+                        <Field label="Occupation"><TextInput value={form.familyRows[0].occupation} onChange={(v) => updateFamily(0, "occupation", v)} /></Field>
+                    </Grid>
+                    <Field label="Issues"><OptionGroup type="checkbox" options={familyIssues} value={form.familyRows[0].issues} onChange={(v) => updateFamily(0, "issues", v)} columns="grid-cols-1 sm:grid-cols-2" /></Field>
+                    <Field label="Describe"><TextArea value={form.familyRows[0].describe} onChange={(v) => updateFamily(0, "describe", v)} /></Field>
+                </Card>
 
-                    <div className="transition-all duration-300 ease-in-out">
-                        {activeParentTab === "mother" ? (
-                            <div className="space-y-6">
-                                <Grid>
-                                    <Field label="Mother's Age"><TextInput type="number" value={form.familyRows[0].age} onChange={(v) => updateFamily(0, "age", v)} /></Field>
-                                    <Field label="Occupation"><TextInput value={form.familyRows[0].occupation} onChange={(v) => updateFamily(0, "occupation", v)} /></Field>
-                                </Grid>
-                                <Field label="Issues"><OptionGroup type="checkbox" options={familyIssues} value={form.familyRows[0].issues} onChange={(v) => updateFamily(0, "issues", v)} columns="grid-cols-1 sm:grid-cols-2" /></Field>
-                                <Field label="Describe"><TextArea value={form.familyRows[0].describe} onChange={(v) => updateFamily(0, "describe", v)} /></Field>
-                            </div>
-                        ) : (
-                            <div className="space-y-6">
-                                <Grid>
-                                    <Field label="Father's Age"><TextInput type="number" value={form.familyRows[1].age} onChange={(v) => updateFamily(1, "age", v)} /></Field>
-                                    <Field label="Occupation"><TextInput value={form.familyRows[1].occupation} onChange={(v) => updateFamily(1, "occupation", v)} /></Field>
-                                </Grid>
-                                <Field label="Issues"><OptionGroup type="checkbox" options={familyIssues} value={form.familyRows[1].issues} onChange={(v) => updateFamily(1, "issues", v)} columns="grid-cols-1 sm:grid-cols-2" /></Field>
-                                <Field label="Describe"><TextArea value={form.familyRows[1].describe} onChange={(v) => updateFamily(1, "describe", v)} /></Field>
-                            </div>
-                        )}
-                    </div>
+                <Card title="Father's Details">
+                    <Grid>
+                        <Field label="Father's Age"><TextInput type="number" value={form.familyRows[1].age} onChange={(v) => updateFamily(1, "age", v)} /></Field>
+                        <Field label="Occupation"><TextInput value={form.familyRows[1].occupation} onChange={(v) => updateFamily(1, "occupation", v)} /></Field>
+                    </Grid>
+                    <Field label="Issues"><OptionGroup type="checkbox" options={familyIssues} value={form.familyRows[1].issues} onChange={(v) => updateFamily(1, "issues", v)} columns="grid-cols-1 sm:grid-cols-2" /></Field>
+                    <Field label="Describe"><TextArea value={form.familyRows[1].describe} onChange={(v) => updateFamily(1, "describe", v)} /></Field>
                 </Card>
 
                 <Card title="Siblings">
@@ -2003,11 +2034,10 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                 key={idx}
                                 type="button"
                                 onClick={() => setActiveSiblingTab(idx)}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 ${
-                                    activeSiblingTab === idx 
-                                    ? "bg-white text-sky-600 shadow-sm" 
+                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 ${activeSiblingTab === idx
+                                    ? "bg-white text-sky-600 shadow-sm"
                                     : "text-slate-500 hover:text-slate-700"
-                                }`}
+                                    }`}
                             >
                                 Sibling {idx - 1}
                             </button>
@@ -2028,15 +2058,15 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                     </div>
                 </Card>
 
-                <Card title="Home Treatment Before Clinic">
-                    <Field label="Did the child receive any home or in-house treatment before coming to the clinic?">
+                <Card title="Home Remedy Before Headache Clinic">
+                    <Field label="Did the child receive any home remedy or treatment before coming to the headache clinic?">
                         <OptionGroup options={yesNo} value={form.clinicPath.homeTreatmentReceived} onChange={(v) => update("clinicPath", "homeTreatmentReceived", v)} columns="md:grid-cols-2" />
                     </Field>
                     {form.clinicPath.homeTreatmentReceived === "Yes" && (
                         <div className="space-y-5 border-l-4 border-sky-400 pl-4 mt-4 transition-all duration-300">
                             <Field label="Treatment used">
-                                <OptionGroup 
-                                    type="checkbox" 
+                                <OptionGroup
+                                    type="checkbox"
                                     options={[
                                         "Paracetamol / acetaminophen",
                                         "NSAID / anti-inflammatory medicine",
@@ -2047,52 +2077,46 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                         "Cold or warm compress",
                                         "Traditional / home remedy",
                                         "Other"
-                                    ]} 
-                                    value={form.clinicPath.homeTreatmentTypes} 
-                                    onChange={(v) => update("clinicPath", "homeTreatmentTypes", v)} 
+                                    ]}
+                                    value={form.clinicPath.homeTreatmentTypes}
+                                    onChange={(v) => update("clinicPath", "homeTreatmentTypes", v)}
                                 />
                             </Field>
                             {safeArray(form.clinicPath.homeTreatmentTypes).includes("Other") && (
                                 <Field label="Other treatment details"><TextInput value={form.clinicPath.homeTreatmentOther} onChange={(v) => update("clinicPath", "homeTreatmentOther", v)} /></Field>
                             )}
                             <Field label="Did symptoms improve?">
-                                <OptionGroup 
-                                    options={["No improvement", "Some improvement", "Better", "Worse", "Not sure"]} 
-                                    value={form.clinicPath.homeTreatmentOutcome} 
-                                    onChange={(v) => update("clinicPath", "homeTreatmentOutcome", v)} 
+                                <OptionGroup
+                                    options={["No improvement", "Some improvement", "Better", "Worse", "Not sure"]}
+                                    value={form.clinicPath.homeTreatmentOutcome}
+                                    onChange={(v) => update("clinicPath", "homeTreatmentOutcome", v)}
                                 />
-                            </Field>
-                            <Field label="Did the treatment worsen the condition?">
-                                <OptionGroup options={["Yes", "No", "Not sure"]} value={form.clinicPath.homeTreatmentWorsened} onChange={(v) => update("clinicPath", "homeTreatmentWorsened", v)} columns="md:grid-cols-3" />
                             </Field>
                             <Field label="Notes/details (optional)"><TextArea value={form.clinicPath.homeTreatmentNotes} onChange={(v) => update("clinicPath", "homeTreatmentNotes", v)} /></Field>
                         </div>
                     )}
                 </Card>
 
-                <Card title="Previous Outside Treatment Before Clinic">
-                    <Field label="Did the child receive any other treatment before coming to the headache clinic?">
+                <Card title="Previous Outside Treatment Prior to Headache Clinic">
+                    <Field label="Did the child receive any other treatment prior to coming to the headache clinic?">
                         <OptionGroup options={yesNo} value={form.clinicPath.previousTreatmentReceived} onChange={(v) => update("clinicPath", "previousTreatmentReceived", v)} columns="md:grid-cols-2" />
                     </Field>
                     {form.clinicPath.previousTreatmentReceived === "Yes" && (
                         <div className="space-y-5 border-l-4 border-indigo-400 pl-4 mt-4 transition-all duration-300">
                             <Field label="Treatment type">
-                                <OptionGroup 
-                                    options={["Western / allopathic treatment", "Ayurvedic / traditional medicine", "Homeopathic treatment", "Pharmacy / over-the-counter treatment", "Other"]} 
-                                    value={form.clinicPath.previousTreatmentType} 
-                                    onChange={(v) => update("clinicPath", "previousTreatmentType", v)} 
+                                <OptionGroup
+                                    options={["Western / allopathic treatment", "Ayurvedic / traditional medicine", "Homeopathic treatment", "Pharmacy / over-the-counter treatment", "Other"]}
+                                    value={form.clinicPath.previousTreatmentType}
+                                    onChange={(v) => update("clinicPath", "previousTreatmentType", v)}
                                 />
                             </Field>
                             <Field label="Treatment details"><TextArea value={form.clinicPath.previousTreatmentDetails} onChange={(v) => update("clinicPath", "previousTreatmentDetails", v)} /></Field>
                             <Field label="Treatment result">
-                                <OptionGroup 
-                                    options={["No improvement", "Some improvement", "Better", "Worse", "Not sure"]} 
-                                    value={form.clinicPath.previousTreatmentOutcomeNew} 
-                                    onChange={(v) => update("clinicPath", "previousTreatmentOutcomeNew", v)} 
+                                <OptionGroup
+                                    options={["No improvement", "Some improvement", "Better", "Worse", "Not sure"]}
+                                    value={form.clinicPath.previousTreatmentOutcomeNew}
+                                    onChange={(v) => update("clinicPath", "previousTreatmentOutcomeNew", v)}
                                 />
-                            </Field>
-                            <Field label="Did it worsen the condition?">
-                                <OptionGroup options={["Yes", "No", "Not sure"]} value={form.clinicPath.previousTreatmentWorsened} onChange={(v) => update("clinicPath", "previousTreatmentWorsened", v)} columns="md:grid-cols-3" />
                             </Field>
                             <Field label="Approximate cost of treatment (Rs.)">
                                 <TextInput type="number" value={form.clinicPath.previousTreatmentCost} onChange={(v) => update("clinicPath", "previousTreatmentCost", v)} placeholder="e.g. 2500" />
@@ -2102,25 +2126,62 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                     )}
                 </Card>
 
-                <Card title="Path to Headache Clinic">
-                    <Field label="Who initiated the visit?"><OptionGroup options={["Self / Parent", "Medical officer", "Specialist", "School", "Other"]} value={form.clinicPath.initiatedBy} onChange={(v) => update("clinicPath", "initiatedBy", v)} /></Field>
-                    {form.clinicPath.initiatedBy === "Other" && <Field label="If Other, specify"><TextInput value={form.clinicPath.initiatedByOther} onChange={(v) => update("clinicPath", "initiatedByOther", v)} /></Field>}
-                    
-                    <Field label="Has the child been seen before for headache?"><OptionGroup options={["No", "Yes"]} value={form.clinicPath.seenBefore} onChange={(v) => update("clinicPath", "seenBefore", v)} columns="md:grid-cols-2" /></Field>
+                <Card title="Path to Headache Clinic / Referral">
+                    <Field label="Referral source">
+                        <OptionGroup
+                            options={["No referral", "Medical officer", "Specialist", "School", "Other"]}
+                            value={form.clinicPath.referralSource}
+                            onChange={(v) => {
+                                update("clinicPath", "referralSource", v);
+                                const legacyVal = v === "No referral" ? "Self / Parent" : v;
+                                update("referral", "source", legacyVal);
+                                update("clinicPath", "initiatedBy", legacyVal);
+                            }}
+                        />
+                    </Field>
+                    {form.clinicPath.referralSource === "Other" && (
+                        <Field label="If Other, specify">
+                            <TextInput
+                                value={form.clinicPath.referralSourceOther}
+                                onChange={(v) => {
+                                    update("clinicPath", "referralSourceOther", v);
+                                    update("referral", "other", v);
+                                    update("clinicPath", "initiatedByOther", v);
+                                }}
+                            />
+                        </Field>
+                    )}
+                    <Field label="Referral notes">
+                        <TextArea
+                            value={form.clinicPath.referralNotes}
+                            onChange={(v) => {
+                                update("clinicPath", "referralNotes", v);
+                                update("referral", "notes", v);
+                            }}
+                        />
+                    </Field>
+
+                    <Field label="Has the child been seen before for headache?">
+                        <OptionGroup options={["No", "Yes"]} value={form.clinicPath.seenBefore} onChange={(v) => update("clinicPath", "seenBefore", v)} columns="md:grid-cols-2" />
+                    </Field>
                     {form.clinicPath.seenBefore === "Yes" && (
-                        <Field label="If Yes, where?"><OptionGroup options={["GP / Medical officer", "Paediatrician", "Neurologist", "ENT", "Eye clinic", "Other"]} value={form.clinicPath.seenBeforeWhere} onChange={(v) => update("clinicPath", "seenBeforeWhere", v)} /></Field>
+                        <Field label="If Yes, where?">
+                            <OptionGroup options={["GP / Medical officer", "Paediatrician", "Neurologist", "ENT", "Eye clinic", "Other"]} value={form.clinicPath.seenBeforeWhere} onChange={(v) => update("clinicPath", "seenBeforeWhere", v)} />
+                        </Field>
                     )}
 
-                    <Field label="Was a diagnosis given before?"><OptionGroup options={["No", "Yes", "Not sure"]} value={form.clinicPath.previousDiagnosisGiven} onChange={(v) => update("clinicPath", "previousDiagnosisGiven", v)} /></Field>
-                    {form.clinicPath.previousDiagnosisGiven === "Yes" && <Field label="If Yes, what diagnosis?"><TextInput value={form.clinicPath.previousDiagnosis} onChange={(v) => update("clinicPath", "previousDiagnosis", v)} /></Field>}
+                    <Field label="Was a diagnosis given before?">
+                        <OptionGroup options={["No", "Yes", "Not sure"]} value={form.clinicPath.previousDiagnosisGiven} onChange={(v) => update("clinicPath", "previousDiagnosisGiven", v)} />
+                    </Field>
+                    {form.clinicPath.previousDiagnosisGiven === "Yes" && (
+                        <Field label="If Yes, what diagnosis?">
+                            <TextInput value={form.clinicPath.previousDiagnosis} onChange={(v) => update("clinicPath", "previousDiagnosis", v)} />
+                        </Field>
+                    )}
 
-                    <Field label="Previous treatment outcome (General)"><OptionGroup options={["No treatment given", "No improvement", "Some improvement", "Better", "Worse", "Not sure"]} value={form.clinicPath.previousTreatmentOutcome} onChange={(v) => update("clinicPath", "previousTreatmentOutcome", v)} /></Field>
-                </Card>
-
-                <Card title="Referral">
-                    <Field label="Referral source"><OptionGroup options={["Self / Parent", "Medical officer", "Specialist", "School", "Other"]} value={form.referral.source} onChange={(v) => update("referral", "source", v)} /></Field>
-                    {form.referral.source === "Other" && <Field label="If Other, specify"><TextInput value={form.referral.other} onChange={(v) => update("referral", "other", v)} /></Field>}
-                    <Field label="Referral notes"><TextArea value={form.referral.notes} onChange={(v) => update("referral", "notes", v)} /></Field>
+                    <Field label="Previous treatment outcome (General)">
+                        <OptionGroup options={["No treatment given", "No improvement", "Some improvement", "Better", "Worse", "Not sure"]} value={form.clinicPath.previousTreatmentOutcome} onChange={(v) => update("clinicPath", "previousTreatmentOutcome", v)} />
+                    </Field>
                 </Card>
             </div>
         );
@@ -2130,15 +2191,51 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
         return (
             <div className="space-y-6">
                 <Card title="Confirm headache and visiting clinical characteristics.">
-                    <Field label="Exclude"><OptionGroup type="checkbox" options={headacheExclude} value={form.headache.exclude} onChange={(v) => update("headache", "exclude", v)} /></Field>
+                    <Field label="Are any of the following possible causes or associated pain present?">
+                        <p className="text-xs text-slate-500 mb-2">Select any symptoms that may indicate a non-headache source of pain.</p>
+                        <OptionGroup type="checkbox" options={headacheExclude} value={form.headache.exclude} onChange={(v) => update("headache", "exclude", v)} />
+                    </Field>
                     <Field label="Headache Confirmed"><OptionGroup options={yesNo} value={form.headache.confirmed} onChange={(v) => update("headache", "confirmed", v)} columns="md:grid-cols-2" /></Field>
                 </Card>
 
                 <Card title="History of the Headache">
-                    <Grid>
-                        <Field label="Duration(Years)"><TextInput type="number" value={form.history.durationYears} onChange={(v) => update("history", "durationYears", v)} /></Field>
-                        <Field label="Months"><TextInput type="number" value={form.history.durationMonths} onChange={(v) => update("history", "durationMonths", v)} /></Field>
-                    </Grid>
+                    <Field label="Headache history duration">
+                        <div className="flex flex-wrap gap-3 items-center mt-1">
+                            <div className="flex items-center gap-1.5 flex-1 min-w-[100px]">
+                                <span className="text-sm font-semibold text-slate-500 whitespace-nowrap">Years</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={form.history.durationYears ?? ""}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === "") { update("history", "durationYears", ""); return; }
+                                        const n = parseInt(val, 10);
+                                        if (!isNaN(n) && n >= 0) update("history", "durationYears", String(n));
+                                    }}
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                                />
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-1 min-w-[100px]">
+                                <span className="text-sm font-semibold text-slate-500 whitespace-nowrap">Months</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="11"
+                                    step="1"
+                                    value={form.history.durationMonths ?? ""}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === "") { update("history", "durationMonths", ""); return; }
+                                        const n = parseInt(val, 10);
+                                        if (!isNaN(n) && n >= 0) update("history", "durationMonths", String(Math.min(11, n)));
+                                    }}
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                                />
+                            </div>
+                        </div>
+                    </Field>
                     <Field label="Constant / Variable"><OptionGroup options={["Constant", "Variable"]} value={form.history.pattern} onChange={(v) => update("history", "pattern", v)} columns="md:grid-cols-2" /></Field>
                     <Field label="Location"><OptionGroup type="checkbox" options={locations} value={form.history.location} onChange={(v) => {
                         update("history", "location", v);
@@ -2166,21 +2263,21 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                         <div className="space-y-4 rounded-2xl bg-slate-50 p-4 border border-slate-100 transition-all duration-300">
                             <h3 className="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2 mb-2">Prodromal</h3>
                             <Field label="Before the headache starts, does the child get warning symptoms?">
-                                <OptionGroup 
-                                    options={["No", "Yes"]} 
-                                    value={form.time.prodromal.hasProdromal} 
-                                    onChange={(v) => update("time", "prodromal", { ...form.time.prodromal, hasProdromal: v })} 
-                                    columns="md:grid-cols-2" 
+                                <OptionGroup
+                                    options={["No", "Yes"]}
+                                    value={form.time.prodromal.hasProdromal}
+                                    onChange={(v) => update("time", "prodromal", { ...form.time.prodromal, hasProdromal: v })}
+                                    columns="md:grid-cols-2"
                                 />
                             </Field>
                             {form.time.prodromal.hasProdromal === "Yes" && (
                                 <div className="space-y-4 border-l-2 border-sky-400 pl-3 transition-all duration-300">
                                     <Field label="Prodromal symptoms">
-                                        <OptionGroup 
-                                            type="checkbox" 
-                                            options={["Pallor", "Fatigue", "Irritability", "Mood change", "Yawning", "Other"]} 
-                                            value={form.time.prodromal.symptoms} 
-                                            onChange={(v) => update("time", "prodromal", { ...form.time.prodromal, symptoms: v })} 
+                                        <OptionGroup
+                                            type="checkbox"
+                                            options={["Pallor", "Fatigue", "Irritability", "Mood change", "Yawning", "Other"]}
+                                            value={form.time.prodromal.symptoms}
+                                            onChange={(v) => update("time", "prodromal", { ...form.time.prodromal, symptoms: v })}
                                         />
                                     </Field>
                                     {safeArray(form.time.prodromal.symptoms).includes("Other") && (
@@ -2196,21 +2293,21 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                         <div className="space-y-4 rounded-2xl bg-slate-50 p-4 border border-slate-100 transition-all duration-300">
                             <h3 className="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2 mb-2">Aura</h3>
                             <Field label="Does the child get aura symptoms?">
-                                <OptionGroup 
-                                    options={["No", "Yes"]} 
-                                    value={form.time.aura.hasAura} 
-                                    onChange={(v) => update("time", "aura", { ...form.time.aura, hasAura: v })} 
-                                    columns="md:grid-cols-2" 
+                                <OptionGroup
+                                    options={["No", "Yes"]}
+                                    value={form.time.aura.hasAura}
+                                    onChange={(v) => update("time", "aura", { ...form.time.aura, hasAura: v })}
+                                    columns="md:grid-cols-2"
                                 />
                             </Field>
                             {form.time.aura.hasAura === "Yes" && (
                                 <div className="space-y-4 border-l-2 border-amber-400 pl-3 transition-all duration-300">
                                     <Field label="Aura symptoms">
-                                        <OptionGroup 
-                                            type="checkbox" 
-                                            options={["Visual", "Auditory", "Gustatory", "Motor", "Brainstem", "Retinal", "Other"]} 
-                                            value={form.time.aura.symptoms} 
-                                            onChange={(v) => update("time", "aura", { ...form.time.aura, symptoms: v })} 
+                                        <OptionGroup
+                                            type="checkbox"
+                                            options={["Visual", "Auditory", "Gustatory", "Motor", "Brainstem", "Retinal", "Other"]}
+                                            value={form.time.aura.symptoms}
+                                            onChange={(v) => update("time", "aura", { ...form.time.aura, symptoms: v })}
                                         />
                                     </Field>
                                     {safeArray(form.time.aura.symptoms).includes("Other") && (
@@ -2219,34 +2316,34 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                         </Field>
                                     )}
                                     <Field label="Aura duration">
-                                        <OptionGroup 
-                                            options={["Less than 5 minutes", "5–60 minutes", "More than 60 minutes", "Not sure"]} 
-                                            value={form.time.aura.duration} 
-                                            onChange={(v) => update("time", "aura", { ...form.time.aura, duration: v })} 
+                                        <OptionGroup
+                                            options={["Less than 5 minutes", "5–60 minutes", "More than 60 minutes", "Not sure"]}
+                                            value={form.time.aura.duration}
+                                            onChange={(v) => update("time", "aura", { ...form.time.aura, duration: v })}
                                         />
                                     </Field>
                                     <Field label="Aura side">
-                                        <OptionGroup 
-                                            options={["Left", "Right", "Both sides", "Not sure"]} 
-                                            value={form.time.aura.side} 
-                                            onChange={(v) => update("time", "aura", { ...form.time.aura, side: v })} 
-                                            columns="md:grid-cols-2" 
+                                        <OptionGroup
+                                            options={["Left", "Right", "Both sides", "Not sure"]}
+                                            value={form.time.aura.side}
+                                            onChange={(v) => update("time", "aura", { ...form.time.aura, side: v })}
+                                            columns="md:grid-cols-2"
                                         />
                                     </Field>
                                     <Field label="When does aura happen?">
-                                        <OptionGroup 
-                                            options={["Before headache", "During headache", "After headache", "Not sure"]} 
-                                            value={form.time.aura.timing} 
-                                            onChange={(v) => update("time", "aura", { ...form.time.aura, timing: v })} 
-                                            columns="md:grid-cols-2" 
+                                        <OptionGroup
+                                            options={["Before headache", "During headache", "After headache", "Not sure"]}
+                                            value={form.time.aura.timing}
+                                            onChange={(v) => update("time", "aura", { ...form.time.aura, timing: v })}
+                                            columns="md:grid-cols-2"
                                         />
                                     </Field>
                                     <Field label="Does the aura spread gradually?">
-                                        <OptionGroup 
-                                            options={["No", "Yes", "Not sure"]} 
-                                            value={form.time.aura.gradualSpread} 
-                                            onChange={(v) => update("time", "aura", { ...form.time.aura, gradualSpread: v })} 
-                                            columns="md:grid-cols-3" 
+                                        <OptionGroup
+                                            options={["No", "Yes", "Not sure"]}
+                                            value={form.time.aura.gradualSpread}
+                                            onChange={(v) => update("time", "aura", { ...form.time.aura, gradualSpread: v })}
+                                            columns="md:grid-cols-3"
                                         />
                                     </Field>
                                 </div>
@@ -2257,10 +2354,10 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                         <div className="space-y-4 rounded-2xl bg-slate-50 p-4 border border-slate-100 transition-all duration-300">
                             <h3 className="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2 mb-2">Headache</h3>
                             <Field label="Duration of headache episode">
-                                <OptionGroup 
-                                    options={["Less than 1 hour", "1–2 hours", "2–4 hours", "More than 4 hours", "All day"]} 
-                                    value={form.time.headache.duration} 
-                                    onChange={(v) => update("time", "headache", { ...form.time.headache, duration: v })} 
+                                <OptionGroup
+                                    options={["Less than 1 hour", "1–2 hours", "2–4 hours", "More than 4 hours", "All day"]}
+                                    value={form.time.headache.duration}
+                                    onChange={(v) => update("time", "headache", { ...form.time.headache, duration: v })}
                                 />
                             </Field>
                         </div>
@@ -2269,21 +2366,21 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                         <div className="space-y-4 rounded-2xl bg-slate-50 p-4 border border-slate-100 transition-all duration-300">
                             <h3 className="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2 mb-2">Postdrome</h3>
                             <Field label="After the headache, does the child feel unwell, tired, confused, or different?">
-                                <OptionGroup 
-                                    options={["No", "Yes"]} 
-                                    value={form.time.postdrome.hasPostdrome} 
-                                    onChange={(v) => update("time", "postdrome", { ...form.time.postdrome, hasPostdrome: v })} 
-                                    columns="md:grid-cols-2" 
+                                <OptionGroup
+                                    options={["No", "Yes"]}
+                                    value={form.time.postdrome.hasPostdrome}
+                                    onChange={(v) => update("time", "postdrome", { ...form.time.postdrome, hasPostdrome: v })}
+                                    columns="md:grid-cols-2"
                                 />
                             </Field>
                             {form.time.postdrome.hasPostdrome === "Yes" && (
                                 <div className="space-y-4 border-l-2 border-slate-400 pl-3 transition-all duration-300">
                                     <Field label="Postdrome symptoms">
-                                        <OptionGroup 
-                                            type="checkbox" 
-                                            options={["Tiredness", "Sleepiness", "Confusion", "Mood change", "Weakness", "Other"]} 
-                                            value={form.time.postdrome.symptoms} 
-                                            onChange={(v) => update("time", "postdrome", { ...form.time.postdrome, symptoms: v })} 
+                                        <OptionGroup
+                                            type="checkbox"
+                                            options={["Tiredness", "Sleepiness", "Confusion", "Mood change", "Weakness", "Other"]}
+                                            value={form.time.postdrome.symptoms}
+                                            onChange={(v) => update("time", "postdrome", { ...form.time.postdrome, symptoms: v })}
                                         />
                                     </Field>
                                     {safeArray(form.time.postdrome.symptoms).includes("Other") && (
@@ -2303,41 +2400,69 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                             <h3 className="font-bold text-slate-800 border-b border-slate-200 pb-2 mb-2">Headache days</h3>
                             <Field label="Last week">
                                 <p className="text-xs text-slate-500 mb-1">How many days did the child have a headache?</p>
-                                <TextInput type="number" value={form.history.headacheDaysLastWeek} onChange={(v) => update("history", "headacheDaysLastWeek", v)} placeholder="0 to 7 days" />
+                                <input type="number" min="0" max="7" step="1"
+                                    value={form.history.headacheDaysLastWeek ?? ""}
+                                    onChange={(e) => { const n = e.target.value === "" ? "" : Math.min(7, Math.max(0, parseInt(e.target.value, 10) || 0)); update("history", "headacheDaysLastWeek", n); }}
+                                    placeholder="0–7"
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100" />
                             </Field>
                             <Field label="Last 4 weeks">
                                 <p className="text-xs text-slate-500 mb-1">How many days did the child have a headache?</p>
-                                <TextInput type="number" value={form.history.headacheDaysLastFourWeeks} onChange={(v) => update("history", "headacheDaysLastFourWeeks", v)} placeholder="0 to 28 days" />
+                                <input type="number" min="0" max="28" step="1"
+                                    value={form.history.headacheDaysLastFourWeeks ?? ""}
+                                    onChange={(e) => { const n = e.target.value === "" ? "" : Math.min(28, Math.max(0, parseInt(e.target.value, 10) || 0)); update("history", "headacheDaysLastFourWeeks", n); }}
+                                    placeholder="0–28"
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100" />
                             </Field>
                         </div>
                         <div className="space-y-4 rounded-2xl bg-slate-50 p-4 border border-slate-100">
                             <h3 className="font-bold text-slate-800 border-b border-slate-200 pb-2 mb-2">Medicine days</h3>
                             <Field label="Last week">
                                 <p className="text-xs text-slate-500 mb-1">How many days did the child take medicine?</p>
-                                <TextInput type="number" value={form.history.medicineDaysLastWeek} onChange={(v) => update("history", "medicineDaysLastWeek", v)} placeholder="0 to 7 days" />
+                                <input type="number" min="0" max="7" step="1"
+                                    value={form.history.medicineDaysLastWeek ?? ""}
+                                    onChange={(e) => { const n = e.target.value === "" ? "" : Math.min(7, Math.max(0, parseInt(e.target.value, 10) || 0)); update("history", "medicineDaysLastWeek", n); }}
+                                    placeholder="0–7"
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100" />
                             </Field>
                             <Field label="Last 4 weeks">
                                 <p className="text-xs text-slate-500 mb-1">How many days did the child take medicine?</p>
-                                <TextInput type="number" value={form.history.medicineDaysLastFourWeeks} onChange={(v) => update("history", "medicineDaysLastFourWeeks", v)} placeholder="0 to 28 days" />
+                                <input type="number" min="0" max="28" step="1"
+                                    value={form.history.medicineDaysLastFourWeeks ?? ""}
+                                    onChange={(e) => { const n = e.target.value === "" ? "" : Math.min(28, Math.max(0, parseInt(e.target.value, 10) || 0)); update("history", "medicineDaysLastFourWeeks", n); }}
+                                    placeholder="0–28"
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100" />
                             </Field>
                         </div>
                     </div>
                 </Card>
 
                 <Card title="Impact Questions">
-                    <p className="text-sm text-slate-500 mb-4">These questions are about how headaches affect the child’s life.</p>
+                    <p className="text-sm text-slate-500 mb-4">These questions are about how headaches affect the child's life.</p>
                     <Grid>
                         <Field label="School absence (Last 4 weeks)">
                             <p className="text-xs text-slate-500 mb-1">How many days did the child not go to school?</p>
-                            <TextInput type="number" value={form.impact.schoolAbsentDaysLastFourWeeks} onChange={(v) => update("impact", "schoolAbsentDaysLastFourWeeks", v)} placeholder="0 to 20 school days" />
+                            <input type="number" min="0" max="20" step="1"
+                                value={form.impact.schoolAbsentDaysLastFourWeeks ?? ""}
+                                onChange={(e) => { const n = e.target.value === "" ? "" : Math.min(20, Math.max(0, parseInt(e.target.value, 10) || 0)); update("impact", "schoolAbsentDaysLastFourWeeks", n); }}
+                                placeholder="0–20"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100" />
                         </Field>
                         <Field label="Left school early (Last 4 weeks)">
                             <p className="text-xs text-slate-500 mb-1">How many days did the child leave school early?</p>
-                            <TextInput type="number" value={form.impact.leftSchoolEarlyDaysLastFourWeeks} onChange={(v) => update("impact", "leftSchoolEarlyDaysLastFourWeeks", v)} placeholder="0 to 20 school days" />
+                            <input type="number" min="0" max="20" step="1"
+                                value={form.impact.leftSchoolEarlyDaysLastFourWeeks ?? ""}
+                                onChange={(e) => { const n = e.target.value === "" ? "" : Math.min(20, Math.max(0, parseInt(e.target.value, 10) || 0)); update("impact", "leftSchoolEarlyDaysLastFourWeeks", n); }}
+                                placeholder="0–20"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100" />
                         </Field>
                         <Field label="Activity limitation (Last 4 weeks)">
                             <p className="text-xs text-slate-500 mb-1">How many days could the child not do things they wanted?</p>
-                            <TextInput type="number" value={form.impact.activityLimitedDaysLastFourWeeks} onChange={(v) => update("impact", "activityLimitedDaysLastFourWeeks", v)} placeholder="0 to 28 days" />
+                            <input type="number" min="0" max="28" step="1"
+                                value={form.impact.activityLimitedDaysLastFourWeeks ?? ""}
+                                onChange={(e) => { const n = e.target.value === "" ? "" : Math.min(28, Math.max(0, parseInt(e.target.value, 10) || 0)); update("impact", "activityLimitedDaysLastFourWeeks", n); }}
+                                placeholder="0–28"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100" />
                         </Field>
                         <Field label="Parent work loss">
                             <p className="text-xs text-slate-500 mb-1">Did the headaches cause parents to lose time from work?</p>
@@ -2346,7 +2471,11 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                     </Grid>
                     {form.impact.parentLostWork === "Yes" && (
                         <Field label="Total number of parent work days lost">
-                            <TextInput type="number" value={form.impact.parentLostWorkDays} onChange={(v) => update("impact", "parentLostWorkDays", v)} placeholder="0 to 28 days" />
+                            <input type="number" min="0" max="28" step="1"
+                                value={form.impact.parentLostWorkDays ?? ""}
+                                onChange={(e) => { const n = e.target.value === "" ? "" : Math.min(28, Math.max(0, parseInt(e.target.value, 10) || 0)); update("impact", "parentLostWorkDays", n); }}
+                                placeholder="0–28"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100" />
                         </Field>
                     )}
                 </Card>
@@ -2369,20 +2498,29 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                         <Field label="Per Month"><TextInput type="number" value={form.history.perMonth} onChange={(v) => update("history", "perMonth", v)} /></Field>
                         <Field label="Seasonal"><TextInput value={form.history.seasonal} onChange={(v) => update("history", "seasonal", v)} /></Field>
                     </Grid>
-                    
+
                     <Field label="Severity" description="Select the usual headache severity.">
-                        <SeverityFaceSelector 
-                            value={form.time.headache.severity} 
-                            onChange={(v) => update("time", "headache", { ...form.time.headache, severity: v })} 
+                        <SeverityFaceSelector
+                            value={form.time.headache.severity}
+                            onChange={(v) => update("time", "headache", { ...form.time.headache, severity: v })}
                         />
                     </Field>
-                    
+
                     <Field label="What makes the pain feel better?"><OptionGroup type="checkbox" options={reliefOptions} value={form.history.relief} onChange={(v) => update("history", "relief", v)} columns="md:grid-cols-2" /></Field>
                     <Field label="What makes the pain feel better? Others (specify)"><TextArea value={form.history.reliefOther} onChange={(v) => update("history", "reliefOther", v)} /></Field>
                     <Field label="What time of the day you get the headache?"><OptionGroup type="checkbox" options={timeOptions} value={form.history.timeOfDay} onChange={(v) => update("history", "timeOfDay", v)} /></Field>
                     <Field label="Premonitory symptoms"><OptionGroup type="checkbox" options={premonitoryOptions} value={form.history.premonitory} onChange={(v) => update("history", "premonitory", v)} /></Field>
                     <Field label="Aggravating Factors"><OptionGroup type="checkbox" options={aggravatingOptions} value={form.history.aggravating} onChange={(v) => update("history", "aggravating", v)} /></Field>
-                    <Field label="Headache was associated with;"><OptionGroup type="checkbox" options={associatedSymptoms} value={form.history.associated} onChange={(v) => update("history", "associated", v)} columns="md:grid-cols-3" /></Field>
+                    <Field label="Headache was associated with;">
+                        <OptionGroup
+                            type="checkbox"
+                            options={associatedSymptoms}
+                            value={form.history.associated}
+                            onChange={(v) => update("history", "associated", v)}
+                            columns="md:grid-cols-3"
+                            optionLabels={associatedSymptomsLabels}
+                        />
+                    </Field>
                 </Card>
             </div>
         );
@@ -2395,15 +2533,15 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                     <Field label="Past Surgical History"><TextArea value={form.medical.pastSurgical} onChange={(v) => update("medical", "pastSurgical", v)} /></Field>
                     <Field label="Drug History (if any)"><TextArea value={form.medical.drugHistory} onChange={(v) => update("medical", "drugHistory", v)} /></Field>
                     <Field label="History of allergies">
-                        <OptionGroup 
-                            type="checkbox" 
-                            options={["Food", "Drug", "Plaster", "None"]} 
-                            value={form.medical.allergies} 
+                        <OptionGroup
+                            type="checkbox"
+                            options={["Food", "Drug", "Plaster", "None"]}
+                            value={form.medical.allergies}
                             onChange={(v) => {
                                 const prev = form.medical.allergies || [];
                                 const hasNone = v.includes("None");
                                 const hadNone = prev.includes("None");
-                                
+
                                 let next = v;
                                 if (hasNone && !hadNone) {
                                     // "None" just selected -> clear others
@@ -2413,7 +2551,7 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                     next = v.filter(item => item !== "None");
                                 }
                                 update("medical", "allergies", next);
-                            }} 
+                            }}
                         />
                     </Field>
                     {(form.medical.allergies?.length > 0 && !form.medical.allergies.includes("None")) && (
@@ -2468,12 +2606,12 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
 
     function DiagnosisStatus({ id }) {
         const val = form.diagnosis[id] || "Unlikely";
-        const colorClass = val === "Confirmed" ? "text-emerald-700 bg-emerald-50 border-emerald-200" : 
-                          val === "Incomplete" ? "text-amber-700 bg-amber-50 border-amber-200" : 
-                          "text-slate-500 bg-slate-50 border-slate-200";
+        const colorClass = val === "Confirmed" ? "text-emerald-700 bg-emerald-50 border-emerald-200" :
+            val === "Incomplete" ? "text-amber-700 bg-amber-50 border-amber-200" :
+                "text-slate-500 bg-slate-50 border-slate-200";
         return (
             <div className={`mt-4 p-4 rounded-xl border-2 flex items-center justify-between ${colorClass}`}>
-                <span className="text-xs font-black uppercase tracking-widest">Calculated Status</span>
+                <span className="text-xs font-black uppercase tracking-widest">Diagnostic Status</span>
                 <span className="text-sm font-bold">{val}</span>
             </div>
         );
@@ -2519,10 +2657,41 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
             <div className="space-y-6">
                 <Card title="Considerations for further investigations" description="CT and/or MRI scanning / Blood / urine / general tests.">
                     <Grid>
-                        <Field label="Height(cm)"><TextInput type="number" value={form.examination.height} onChange={(v) => update("examination", "height", v)} /></Field>
-                        <Field label="Weight(kg)"><TextInput type="number" value={form.examination.weight} onChange={(v) => update("examination", "weight", v)} /></Field>
-                        <Field label="Weight for Height (<5years)"><TextInput value={form.examination.weightForHeight} onChange={(v) => update("examination", "weightForHeight", v)} /></Field>
-                        <Field label="BMI"><TextInput value={form.examination.bmi} onChange={(v) => update("examination", "bmi", v)} /></Field>
+                        <Field label="Height(cm)">
+                            <TextInput type="number" value={form.examination.height} onChange={(v) => {
+                                update("examination", "height", v);
+                                const h = parseFloat(v);
+                                const w = parseFloat(form.examination.weight);
+                                if (h > 0 && w > 0) {
+                                    const bmi = (w / ((h / 100) * (h / 100))).toFixed(1);
+                                    update("examination", "bmi", bmi);
+                                } else {
+                                    update("examination", "bmi", "");
+                                }
+                            }} />
+                        </Field>
+                        <Field label="Weight(kg)">
+                            <TextInput type="number" value={form.examination.weight} onChange={(v) => {
+                                update("examination", "weight", v);
+                                const w = parseFloat(v);
+                                const h = parseFloat(form.examination.height);
+                                if (h > 0 && w > 0) {
+                                    const bmi = (w / ((h / 100) * (h / 100))).toFixed(1);
+                                    update("examination", "bmi", bmi);
+                                } else {
+                                    update("examination", "bmi", "");
+                                }
+                            }} />
+                        </Field>
+                        <Field label="BMI (auto-calculated)">
+                            <input
+                                type="text"
+                                readOnly
+                                value={form.examination.bmi || ""}
+                                placeholder="Enter height and weight"
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 outline-none cursor-default"
+                            />
+                        </Field>
                         <Field label="OFC(cm)"><TextInput type="number" value={form.examination.ofc} onChange={(v) => update("examination", "ofc", v)} /></Field>
                         <Field label="Blood P. (systolic)mmHg"><TextInput type="number" value={form.examination.bpSystolic} onChange={(v) => update("examination", "bpSystolic", v)} /></Field>
                         <Field label="Blood P. (diastolic)mmHg"><TextInput type="number" value={form.examination.bpDiastolic} onChange={(v) => update("examination", "bpDiastolic", v)} /></Field>
@@ -2604,7 +2773,7 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                 <FileText className="h-5 w-5 text-sky-600" />
                                 Report Generation Preview
                             </h3>
-                            
+
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Likely Category</p>
@@ -2621,7 +2790,7 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                     <p className="text-sm font-bold text-sky-700">{fresshTotal} / 60</p>
                                 </div>
                             </div>
-                            
+
                             <p className="mt-4 text-xs text-slate-500 italic">
                                 "Generate reports after completing the form. Doctor report includes clinical criteria reflections."
                             </p>
@@ -2632,11 +2801,11 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                 <ShieldCheck className="h-6 w-6 text-sky-600" />
                                 <h3 className="text-lg font-bold text-slate-900">Consent & Report Use</h3>
                             </div>
-                            
+
                             <div className="space-y-4">
                                 <label className="flex gap-4 cursor-pointer p-4 bg-white rounded-xl border border-slate-200 hover:border-sky-300 transition-all duration-200 shadow-sm hover:shadow-md hover:bg-slate-50">
-                                    <input 
-                                        type="checkbox" 
+                                    <input
+                                        type="checkbox"
                                         checked={form.consent.reportConsent}
                                         onChange={(e) => update("consent", "reportConsent", e.target.checked)}
                                         className="h-6 w-6 mt-0.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500 transition-transform active:scale-90"
@@ -2648,8 +2817,8 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                 </label>
 
                                 <label className="flex gap-4 cursor-pointer p-4 bg-white rounded-xl border border-slate-200 hover:border-sky-300 transition-all duration-200 shadow-sm hover:shadow-md hover:bg-slate-50">
-                                    <input 
-                                        type="checkbox" 
+                                    <input
+                                        type="checkbox"
                                         checked={form.consent.researchConsent}
                                         onChange={(e) => update("consent", "researchConsent", e.target.checked)}
                                         className="h-6 w-6 mt-0.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500 transition-transform active:scale-90"
@@ -2661,8 +2830,8 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                 </label>
 
                                 <label className="flex gap-4 cursor-pointer p-4 bg-white rounded-xl border border-slate-200 hover:border-sky-300 transition-all duration-200 shadow-sm hover:shadow-md hover:bg-slate-50">
-                                    <input 
-                                        type="checkbox" 
+                                    <input
+                                        type="checkbox"
                                         checked={form.consent.deidentifiedExportConsent}
                                         onChange={(e) => update("consent", "deidentifiedExportConsent", e.target.checked)}
                                         className="h-6 w-6 mt-0.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500 transition-transform active:scale-90"
@@ -2721,45 +2890,45 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                             </Card>
 
                             {!hideResearchExport && (
-                            <Card title="Export Tools" description="Data export for clinical research.">
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-1 gap-3">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                if (!form.consent?.deidentifiedExportConsent) {
-                                                    alert("Please confirm deidentified research export consent first.");
-                                                    return;
-                                                }
-                                                const safeForm = ensureFormDefaults(form);
-                                                downloadDeidentifiedCsv(safeForm, fresshTotal);
-                                            }}
-                                            className="flex items-center justify-center gap-3 rounded-xl bg-slate-100 border-2 border-slate-200 px-4 py-3 text-xs font-bold text-slate-700 transition hover:bg-slate-200 disabled:opacity-40"
-                                        >
-                                            <Database className="h-4 w-4" />
-                                            Export Deidentified CSV
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                if (!form.consent?.deidentifiedExportConsent) {
-                                                    alert("Please confirm deidentified research export consent first.");
-                                                    return;
-                                                }
-                                                const safeForm = ensureFormDefaults(form);
-                                                downloadDeidentifiedJson(safeForm, fresshTotal);
-                                            }}
-                                            className="flex items-center justify-center gap-3 rounded-xl bg-slate-100 border-2 border-slate-200 px-4 py-3 text-xs font-bold text-slate-700 transition hover:bg-slate-200 disabled:opacity-40"
-                                        >
-                                            <FileText className="h-4 w-4" />
-                                            Export Deidentified JSON
-                                        </button>
+                                <Card title="Export Tools" description="Data export for clinical research.">
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (!form.consent?.deidentifiedExportConsent) {
+                                                        alert("Please confirm deidentified research export consent first.");
+                                                        return;
+                                                    }
+                                                    const safeForm = ensureFormDefaults(form);
+                                                    downloadDeidentifiedCsv(safeForm, fresshTotal);
+                                                }}
+                                                className="flex items-center justify-center gap-3 rounded-xl bg-slate-100 border-2 border-slate-200 px-4 py-3 text-xs font-bold text-slate-700 transition hover:bg-slate-200 disabled:opacity-40"
+                                            >
+                                                <Database className="h-4 w-4" />
+                                                Export Deidentified CSV
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (!form.consent?.deidentifiedExportConsent) {
+                                                        alert("Please confirm deidentified research export consent first.");
+                                                        return;
+                                                    }
+                                                    const safeForm = ensureFormDefaults(form);
+                                                    downloadDeidentifiedJson(safeForm, fresshTotal);
+                                                }}
+                                                className="flex items-center justify-center gap-3 rounded-xl bg-slate-100 border-2 border-slate-200 px-4 py-3 text-xs font-bold text-slate-700 transition hover:bg-slate-200 disabled:opacity-40"
+                                            >
+                                                <FileText className="h-4 w-4" />
+                                                Export Deidentified JSON
+                                            </button>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 italic text-center">
+                                            Exports remove names, phone numbers, and emails.
+                                        </p>
                                     </div>
-                                    <p className="text-[10px] text-slate-500 italic text-center">
-                                        Exports remove names, phone numbers, and emails.
-                                    </p>
-                                </div>
-                            </Card>
+                                </Card>
                             )}
                         </div>
 
@@ -2824,17 +2993,17 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                             A React front-end version of the child headache intake form, organized as a 7-page wizard for a cleaner patient and doctor workflow.
                         </p>
                     </div>
-                    
+
                     <div className="flex flex-col gap-3 w-full md:w-auto">
                         <div className="bg-white/10 backdrop-blur-md rounded-2xl p-2 border border-white/20 flex gap-1">
-                            <button 
+                            <button
                                 onClick={() => setViewMode("doctor")}
                                 className={`flex-1 md:flex-none flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${viewMode === "doctor" ? "bg-white text-sky-700 shadow-md" : "text-white hover:bg-white/10"}`}
                             >
                                 <Stethoscope className="h-4 w-4" />
                                 Doctor Mode
                             </button>
-                            <button 
+                            <button
                                 onClick={() => setViewMode("patient")}
                                 className={`flex-1 md:flex-none flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${viewMode === "patient" ? "bg-white text-sky-700 shadow-md" : "text-white hover:bg-white/10"}`}
                             >
@@ -2842,7 +3011,7 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                 Patient Mode
                             </button>
                         </div>
-                        
+
                         <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/20">
                             <p className="text-[10px] font-black uppercase tracking-widest text-sky-100 mb-2 px-1">Draft Tools</p>
                             <div className="flex gap-2">
@@ -2957,28 +3126,28 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                                     sample.patient.whatsapp = "0711223344";
                                     sample.patient.age = 4;
                                     sample.headache.exclude = ["TM joint pain"];
-                                    
+
                                     // Strong T-Time case
                                     sample.time.prodromal.hasProdromal = "Yes";
                                     sample.time.prodromal.symptoms = ["Fatigue", "Yawning"];
-                                    
+
                                     sample.time.aura.hasAura = "Yes";
                                     sample.time.aura.symptoms = ["Visual"];
                                     sample.time.aura.duration = "5–60 minutes";
                                     sample.time.aura.side = "Left";
                                     sample.time.aura.timing = "Before headache";
                                     sample.time.aura.gradualSpread = "Yes";
-                                    
+
                                     sample.time.headache.duration = "More than 4 hours";
                                     sample.time.headache.severity = "Very bad";
-                                    
+
                                     sample.time.postdrome.hasPostdrome = "Yes";
                                     sample.time.postdrome.symptoms = ["Tiredness", "Sleepiness"];
 
                                     sample.history.painNature = ["Thunder clapping"];
                                     sample.history.associated = ["Vomiting", "Vision issues/Diplopia", "Walking difficulty"];
                                     sample.history.aggravating = ["Activity"];
-                                    
+
                                     const reflected = applyForwardReflections(sample);
                                     setForm(reflected);
                                     console.log("Smoke Test Result:", reflected);
