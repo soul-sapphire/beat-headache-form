@@ -1783,6 +1783,8 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
     });
     const [activeSiblingTab, setActiveSiblingTab] = useState(2); // Sibling 1 is index 2
     const [viewMode, setViewMode] = useState("doctor"); // "doctor" or "patient"
+    const [validationModalOpen, setValidationModalOpen] = useState(false);
+    const [missingFields, setMissingFields] = useState([]);
 
     useEffect(() => {
         const handleScrollTop = () => {
@@ -1862,35 +1864,85 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
         }
     };
 
-    const validateForReports = (f) => {
+    const validateForm = (f) => {
         const missing = [];
-        if (!f.patient.firstName && !f.patient.lastName && !f.patient.registrationCode) missing.push("Patient identification (Name/Code)");
-        if (!f.patient.age) missing.push("Patient Age");
-        if (!f.patient.gender) missing.push("Patient Gender");
-        if (f.headache.confirmed === "Yes") {
-            if ((f.history.location || []).length === 0) missing.push("Headache location");
+        if (!f.patient.firstName && !f.patient.lastName && !f.patient.registrationCode) {
+            missing.push({ label: "Patient identification (Name/Code)", id: "patientIdentification" });
         }
-        if (!f.time.headache.duration && !f.history.episodeDuration) missing.push("Headache episode duration");
-        if (!f.time.headache.severity) missing.push("Pain severity");
+        if (!f.patient.age) {
+            missing.push({ label: "Patient Age", id: "patientAge" });
+        }
+        if (!f.patient.gender) {
+            missing.push({ label: "Patient Gender", id: "patientGender" });
+        }
+        if (f.headache.confirmed === "Yes") {
+            if ((f.history.location || []).length === 0) {
+                missing.push({ label: "Headache location", id: "headacheLocation" });
+            }
+        }
+        if (!f.time.headache.duration && !f.history.episodeDuration) {
+            missing.push({ label: "Headache episode duration", id: "headacheDuration" });
+        }
+        if (!f.time.headache.severity) {
+            missing.push({ label: "Pain severity", id: "painSeverity" });
+        }
 
         const hasFreq = toNumber(f.history.headacheDaysLastFourWeeks) > 0 ||
             toNumber(f.history.perMonth) > 0 ||
             toNumber(f.history.perWeek) > 0 ||
             toNumber(f.history.perDay) > 0;
-        if (!hasFreq) missing.push("Headache frequency (days/month)");
+        if (!hasFreq) {
+            missing.push({ label: "Headache frequency (days/month)", id: "headacheFrequency" });
+        }
 
-        if (!f.consent.reportConsent) missing.push("Report use consent");
+        if (!f.consent.reportConsent) {
+            missing.push({ label: "Report use consent", id: "reportConsent" });
+        }
 
+        return missing;
+    };
+
+    const validateForReports = (f) => {
+        const missing = validateForm(f);
         return {
             isValid: missing.length === 0,
-            missing
+            missing: missing.map(item => item.label)
         };
     };
 
+    const pageMap = {
+        patientIdentification: 0,
+        patientAge: 0,
+        patientGender: 0,
+        headacheLocation: 1,
+        headacheDuration: 1,
+        painSeverity: 1,
+        headacheFrequency: 1,
+        reportConsent: 6
+    };
+
+    const scrollToField = (id) => {
+        const targetPage = pageMap[id];
+        if (targetPage !== undefined && targetPage !== page) {
+            setPage(targetPage);
+        }
+        setTimeout(() => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.scrollIntoView({ behavior: "smooth", block: "center" });
+                element.classList.add("highlight-error-glow");
+                setTimeout(() => {
+                    element.classList.remove("highlight-error-glow");
+                }, 1500);
+            }
+        }, 150);
+    };
+
     const handleReportDownload = (type) => {
-        const validation = validateForReports(form);
-        if (!validation.isValid) {
-            alert("Please complete required fields before generating reports:\n\n- " + validation.missing.join("\n- "));
+        const missing = validateForm(form);
+        if (missing.length > 0) {
+            setMissingFields(missing);
+            setValidationModalOpen(true);
             return;
         }
 
@@ -1921,18 +1973,24 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
         return (
             <div className="space-y-6">
                 <Card title="New Patient" description="Patient identification and registration details.">
-                    <Grid>
-                        <Field label="First Name" required><TextInput value={form.patient.firstName} onChange={(v) => update("patient", "firstName", v)} /></Field>
-                        <Field label="Last Name" required><TextInput value={form.patient.lastName} onChange={(v) => update("patient", "lastName", v)} /></Field>
-                        <Field label="Phone"><TextInput value={form.patient.phone} onChange={(v) => update("patient", "phone", v)} /></Field>
-                        <Field label="WhatsApp"><TextInput value={form.patient.whatsapp} onChange={(v) => update("patient", "whatsapp", v)} /></Field>
-                        <Field label="Email Address"><TextInput type="email" value={form.patient.email} onChange={(v) => update("patient", "email", v)} /></Field>
-                        <Field label="Registered Date"><TextInput type="date" value={form.patient.registeredDate} onChange={(v) => update("patient", "registeredDate", v)} /></Field>
-                        <Field label="DOB"><TextInput type="date" value={form.patient.dob} onChange={(v) => update("patient", "dob", v)} /></Field>
-                        <Field label="Age(Years)"><TextInput type="number" value={form.patient.age} onChange={(v) => update("patient", "age", v)} /></Field>
-                        <Field label="Registration Code" required><TextInput value={form.patient.registrationCode} onChange={(v) => update("patient", "registrationCode", v)} /></Field>
-                    </Grid>
-                    <Field label="Gender"><OptionGroup options={genderOptions} value={form.patient.gender} onChange={(v) => update("patient", "gender", v)} columns="md:grid-cols-2" /></Field>
+                    <div id="patientIdentification">
+                        <Grid>
+                            <Field label="First Name" required><TextInput value={form.patient.firstName} onChange={(v) => update("patient", "firstName", v)} /></Field>
+                            <Field label="Last Name" required><TextInput value={form.patient.lastName} onChange={(v) => update("patient", "lastName", v)} /></Field>
+                            <Field label="Phone"><TextInput value={form.patient.phone} onChange={(v) => update("patient", "phone", v)} /></Field>
+                            <Field label="WhatsApp"><TextInput value={form.patient.whatsapp} onChange={(v) => update("patient", "whatsapp", v)} /></Field>
+                            <Field label="Email Address"><TextInput type="email" value={form.patient.email} onChange={(v) => update("patient", "email", v)} /></Field>
+                            <Field label="Registered Date"><TextInput type="date" value={form.patient.registeredDate} onChange={(v) => update("patient", "registeredDate", v)} /></Field>
+                            <Field label="DOB"><TextInput type="date" value={form.patient.dob} onChange={(v) => update("patient", "dob", v)} /></Field>
+                            <div id="patientAge">
+                                <Field label="Age(Years)"><TextInput type="number" value={form.patient.age} onChange={(v) => update("patient", "age", v)} /></Field>
+                            </div>
+                            <Field label="Registration Code" required><TextInput value={form.patient.registrationCode} onChange={(v) => update("patient", "registrationCode", v)} /></Field>
+                        </Grid>
+                    </div>
+                    <div id="patientGender">
+                        <Field label="Gender"><OptionGroup options={genderOptions} value={form.patient.gender} onChange={(v) => update("patient", "gender", v)} columns="md:grid-cols-2" /></Field>
+                    </div>
                     <Field label="Ethnicity"><OptionGroup options={ethnicityOptions} value={form.patient.ethnicity} onChange={(v) => update("patient", "ethnicity", v)} /></Field>
                 </Card>
 
@@ -2237,11 +2295,13 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                         </div>
                     </Field>
                     <Field label="Constant / Variable"><OptionGroup options={["Constant", "Variable"]} value={form.history.pattern} onChange={(v) => update("history", "pattern", v)} columns="md:grid-cols-2" /></Field>
-                    <Field label="Location"><OptionGroup type="checkbox" options={locations} value={form.history.location} onChange={(v) => {
-                        update("history", "location", v);
-                        if (!v.includes("Frontal")) update("history", "frontalSide", "");
-                        if (!v.includes("Temporal")) update("history", "temporalSide", "");
-                    }} /></Field>
+                    <div id="headacheLocation">
+                        <Field label="Location"><OptionGroup type="checkbox" options={locations} value={form.history.location} onChange={(v) => {
+                            update("history", "location", v);
+                            if (!v.includes("Frontal")) update("history", "frontalSide", "");
+                            if (!v.includes("Temporal")) update("history", "temporalSide", "");
+                        }} /></Field>
+                    </div>
                     <Grid>
                         {form.history.location?.includes("Frontal") && (
                             <div className="transition-all duration-300 ease-in-out">
@@ -2351,7 +2411,7 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                         </div>
 
                         {/* C) Headache */}
-                        <div className="space-y-4 rounded-2xl bg-slate-50 p-4 border border-slate-100 transition-all duration-300">
+                        <div id="headacheDuration" className="space-y-4 rounded-2xl bg-slate-50 p-4 border border-slate-100 transition-all duration-300">
                             <h3 className="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2 mb-2">Headache</h3>
                             <Field label="Duration of headache episode">
                                 <OptionGroup
@@ -2491,6 +2551,7 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                     )}
                 </Card>
 
+                <div id="headacheFrequency">
                 <Card title="How Many Times & Severity">
                     <Grid>
                         <Field label="Per Day"><TextInput type="number" value={form.history.perDay} onChange={(v) => update("history", "perDay", v)} /></Field>
@@ -2499,12 +2560,14 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                         <Field label="Seasonal"><TextInput value={form.history.seasonal} onChange={(v) => update("history", "seasonal", v)} /></Field>
                     </Grid>
 
-                    <Field label="Severity" description="Select the usual headache severity.">
-                        <SeverityFaceSelector
-                            value={form.time.headache.severity}
-                            onChange={(v) => update("time", "headache", { ...form.time.headache, severity: v })}
-                        />
-                    </Field>
+                    <div id="painSeverity">
+                        <Field label="Severity" description="Select the usual headache severity.">
+                            <SeverityFaceSelector
+                                value={form.time.headache.severity}
+                                onChange={(v) => update("time", "headache", { ...form.time.headache, severity: v })}
+                            />
+                        </Field>
+                    </div>
 
                     <Field label="What makes the pain feel better?"><OptionGroup type="checkbox" options={reliefOptions} value={form.history.relief} onChange={(v) => update("history", "relief", v)} columns="md:grid-cols-2" /></Field>
                     <Field label="What makes the pain feel better? Others (specify)"><TextArea value={form.history.reliefOther} onChange={(v) => update("history", "reliefOther", v)} /></Field>
@@ -2522,6 +2585,7 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                         />
                     </Field>
                 </Card>
+                </div>
             </div>
         );
     }
@@ -3182,6 +3246,173 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                     </div>
                 )}
             </div>
+
+            {/* Validation Modal */}
+            {validationModalOpen && (
+                <div
+                    style={{
+                        position: "fixed", inset: 0, zIndex: 9999,
+                        background: "rgba(15,23,42,0.72)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        backdropFilter: "blur(4px)",
+                        animation: "fadeInOverlay 0.2s ease"
+                    }}
+                    onClick={() => setValidationModalOpen(false)}
+                >
+                    <div
+                        style={{
+                            background: "#ffffff",
+                            borderRadius: "1.5rem",
+                            padding: "2rem 2.5rem",
+                            maxWidth: "480px",
+                            width: "90%",
+                            boxShadow: "0 25px 60px rgba(0,0,0,0.35)",
+                            animation: "slideUpModal 0.25s cubic-bezier(0.34,1.56,0.64,1)"
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.25rem" }}>
+                            <div style={{
+                                width: "2.5rem", height: "2.5rem", borderRadius: "50%",
+                                background: "linear-gradient(135deg, #fecdd3, #fda4af)",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                flexShrink: 0
+                            }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#be123c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 800, color: "#0f172a" }}>
+                                    Please complete required fields
+                                </h2>
+                                <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "#64748b" }}>
+                                    Click a field below to navigate directly to it.
+                                </p>
+                            </div>
+                        </div>
+
+                        <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1.5rem" }}>
+                            {missingFields.map((field) => (
+                                <li key={field.id} style={{ marginBottom: "0.5rem" }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setValidationModalOpen(false);
+                                            scrollToField(field.id);
+                                        }}
+                                        style={{
+                                            display: "flex", alignItems: "center",
+                                            justifyContent: "space-between",
+                                            width: "100%", textAlign: "left",
+                                            background: "#f8fafc",
+                                            border: "1.5px solid #e2e8f0",
+                                            borderRadius: "0.75rem",
+                                            padding: "0.75rem 1rem",
+                                            cursor: "pointer",
+                                            transition: "all 0.18s ease"
+                                        }}
+                                        onMouseEnter={e => {
+                                            e.currentTarget.style.background = "#eff6ff";
+                                            e.currentTarget.style.borderColor = "#93c5fd";
+                                            const label = e.currentTarget.querySelector(".vfield-label");
+                                            const dot = e.currentTarget.querySelector(".vfield-dot");
+                                            const arrow = e.currentTarget.querySelector(".vfield-arrow");
+                                            if (label) label.style.color = "#1d4ed8";
+                                            if (dot) dot.style.background = "#2563eb";
+                                            if (arrow) { arrow.style.color = "#1d4ed8"; arrow.style.transform = "translateX(2px)"; }
+                                        }}
+                                        onMouseLeave={e => {
+                                            e.currentTarget.style.background = "#f8fafc";
+                                            e.currentTarget.style.borderColor = "#e2e8f0";
+                                            const label = e.currentTarget.querySelector(".vfield-label");
+                                            const dot = e.currentTarget.querySelector(".vfield-dot");
+                                            const arrow = e.currentTarget.querySelector(".vfield-arrow");
+                                            if (label) label.style.color = "#1e3a5f";
+                                            if (dot) dot.style.background = "#93c5fd";
+                                            if (arrow) { arrow.style.color = "#2563eb"; arrow.style.transform = "translateX(0)"; }
+                                        }}
+                                    >
+                                        {/* Left: dot + label */}
+                                        <span style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
+                                            <span
+                                                className="vfield-dot"
+                                                style={{
+                                                    width: "8px", height: "8px", borderRadius: "50%",
+                                                    background: "#93c5fd", flexShrink: 0,
+                                                    transition: "background 0.18s ease"
+                                                }}
+                                            />
+                                            <span
+                                                className="vfield-label"
+                                                style={{
+                                                    fontSize: "0.875rem", fontWeight: 600,
+                                                    color: "#1e3a5f",
+                                                    transition: "color 0.18s ease"
+                                                }}
+                                            >
+                                                {field.label}
+                                            </span>
+                                        </span>
+                                        {/* Right: blue arrow */}
+                                        <span
+                                            className="vfield-arrow"
+                                            style={{
+                                                color: "#2563eb", flexShrink: 0,
+                                                transition: "transform 0.18s ease, color 0.18s ease",
+                                                display: "flex", alignItems: "center"
+                                            }}
+                                        >
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                                stroke="currentColor" strokeWidth="2.5"
+                                                strokeLinecap="round" strokeLinejoin="round">
+                                                <line x1="5" y1="12" x2="19" y2="12"/>
+                                                <polyline points="12 5 19 12 12 19"/>
+                                            </svg>
+                                        </span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+
+                        <button
+                            type="button"
+                            onClick={() => setValidationModalOpen(false)}
+                            style={{
+                                width: "100%", padding: "0.75rem",
+                                background: "#0f172a", color: "#fff",
+                                border: "none", borderRadius: "0.875rem",
+                                fontSize: "0.875rem", fontWeight: 700, cursor: "pointer",
+                                transition: "background 0.15s"
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = "#1e293b"; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = "#0f172a"; }}
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <style>{`
+                @keyframes fadeInOverlay {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                @keyframes slideUpModal {
+                    from { opacity: 0; transform: translateY(24px) scale(0.97); }
+                    to { opacity: 1; transform: translateY(0) scale(1); }
+                }
+                @keyframes pulseRedGlow {
+                    0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.7), 0 0 0 0 rgba(239,68,68,0.4); outline: 2px solid transparent; }
+                    40% { box-shadow: 0 0 0 6px rgba(239,68,68,0.35), 0 0 18px 4px rgba(239,68,68,0.25); outline: 2px solid #ef4444; }
+                    100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); outline: 2px solid transparent; }
+                }
+                .highlight-error-glow {
+                    animation: pulseRedGlow 1.5s ease-out forwards;
+                    border-radius: 0.75rem;
+                }
+            `}</style>
         </main>
     );
 }
