@@ -1,20 +1,10 @@
 const fs = require('fs');
+const path = require('path');
 
-const path = 'src/reportUtils.js';
-let code = fs.readFileSync(path, 'utf8');
+const filePath = path.join(__dirname, '..', 'src', 'reportUtils.js');
+let content = fs.readFileSync(filePath, 'utf8');
 
-const startStr = "export function generatePatientReportPdf(form, fresshTotal) {";
-const endStr = "export function generateDoctorReportPdf(form, fresshTotal) {";
-
-const startIndex = code.indexOf(startStr);
-const endIndex = code.indexOf(endStr);
-
-if (startIndex === -1 || endIndex === -1) {
-    console.error("Could not find boundaries");
-    process.exit(1);
-}
-
-const optimizedFunction = `export function generatePatientReportPdf(form, fresshTotal) {
+const newFunc = `export function generatePatientReportPdf(form, fresshTotal) {
     const doc = new jsPDF({ format: "a5" });
     
     // --- Layout Constants (A5 Scaled) ---
@@ -179,7 +169,19 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
         y = 14.0; 
     };
     
-    // Helper: draw field box
+    // Helper: draw footer
+    const drawFooter = (pageNum) => {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(5.5);
+        doc.setTextColor(...C_MUTED);
+        doc.text(\`Page \${pageNum} of 2\`, P_WIDTH - M_RIGHT, P_HEIGHT - 6, { align: "right" });
+        if (pageNum === 2) {
+            doc.setFontSize(5);
+            doc.text("For clinical documentation support; final assessment remains with the treating clinician.", M_LEFT, P_HEIGHT - 6);
+        }
+    };
+
+    // Helper: draw field box (Task 1: compressed layout)
     const drawFieldBox = (label, value, bx, by, bw, bh) => {
         doc.setFillColor(...C_WHITE);
         doc.setDrawColor(...C_BORDER);
@@ -189,12 +191,12 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
         doc.setFont("helvetica", "bold");
         doc.setFontSize(4.5);
         doc.setTextColor(...C_MUTED);
-        doc.text(label, bx + 1.5, by + 2); 
+        doc.text(label, bx + 1.5, by + 1.6); 
         
         doc.setFont("helvetica", "normal");
         doc.setFontSize(5.5);
         doc.setTextColor(...C_TEXT);
-        doc.text(truncateSmart(value, bw / 1), bx + 1.5, by + 4.5); 
+        doc.text(truncateSmart(value, bw / 1), bx + 1.5, by + 3.8); 
     };
 
     const drawSectionTitle = (title, sy) => {
@@ -203,6 +205,150 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
         doc.setTextColor(...C_ACCENT);
         doc.text(title.toUpperCase(), M_LEFT + 2, sy);
         return sy + 2; 
+    };
+
+    const drawCard = (cx, cy, cw, title, lines) => {
+        doc.setDrawColor(...C_BORDER); doc.setFillColor(...C_WHITE);
+        doc.roundedRect(cx, cy, cw, 13.5, 0.7, 0.7, "FD"); 
+        doc.setFont("helvetica", "bold"); doc.setFontSize(5); doc.setTextColor(...C_ACCENT);
+        doc.text(title.toUpperCase(), cx + 2, cy + 3); 
+        
+        let ly = cy + 5.5; 
+        lines.forEach(l => {
+            if(!l) return;
+            doc.setFont("helvetica", "bold"); doc.setFontSize(4.5); doc.setTextColor(...C_MUTED); 
+            doc.text(l[0], cx + 2, ly);
+            
+            doc.setFont("helvetica", "normal"); doc.setFontSize(4.5); doc.setTextColor(...C_TEXT);
+            const val = cleanPatientSummaryText(l[1]);
+            const splitVal = doc.splitTextToSize(val, cw - 20);
+            doc.text(splitVal[0] || "", cx + 19, ly);
+            ly += 2.5; 
+        });
+    };
+
+    const drawFeatureBlock = (label, value, fx, fy, fw, fh) => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(4.5);
+        doc.setTextColor(...C_MUTED);
+        doc.text(label, fx, fy);
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(5);
+        doc.setTextColor(...C_TEXT);
+        
+        const lines = doc.splitTextToSize(cleanPatientSummaryText(value), fw);
+        const maxLines = Math.floor(fh / 2.3);
+        doc.text(lines.slice(0, maxLines), fx, fy + 1.8); 
+    };
+
+    const cleanUserNotesOnly = (text) => {
+        if (!text) return "";
+        const isGeneratedJargon = (line) => {
+            const l = line.toLowerCase();
+            const patterns = [
+                "suggested because", "previous diagnosis", "previous treatment",
+                "referral source", "developmental concern", "developmental history concern",
+                "prodromal symptoms", "aura symptoms", "suggested review", "postdrome reported",
+                "chronic headache history", "doctor review note", "medicine used for headache",
+                "frequent medicine use", "severity score from page", "migraine-supporting",
+                "lifestyle note", "previous response:", "premonitory symptoms",
+                "headache impact reported", "headache reported yesterday", "medicine taken yesterday",
+                "suggested check", "medication safety warning", "red flag selected",
+                "clinical/research review", "clinician confirmation", "not a diagnosis",
+                "doctor must", "clinician must", "see full clinical",
+                "possible non-primary", "possible ent-related", "possible secondary",
+                "possible tm joint-related", "check current/past", "medication safety"
+            ];
+            return patterns.some(p => l.includes(p));
+        };
+
+        const lines = String(text)
+            .split(/\\n+|\\s*\\|\\s*/)
+            .map(line => line.trim())
+            .filter(Boolean)
+            .filter(line => !isGeneratedJargon(line));
+        
+        return lines.join(", ");
+    };
+
+    const getRecommendation = (category, value) => {
+        const valStr = String(value || "").toLowerCase();
+        let current = value ? String(value).replace(/^\\d+\\s*-\\s*/, '') : "Not provided";
+        let goal = "";
+        let why = "";
+        let recommended = "";
+        
+        if (category === "Hydration") {
+            recommended = "More than 8 glasses/day";
+            why = "Adequate hydration supports brain function and may help reduce headaches.";
+            if (valStr.includes("<2") || valStr.includes("less than 2")) goal = "Increase by 6-8 glasses/day.";
+            else if (valStr.includes("2-4") || valStr.includes("2 to 4")) goal = "Increase by 4-6 glasses/day.";
+            else if (valStr.includes("4-6") || valStr.includes("4 to 6")) goal = "Increase by 2-4 glasses/day.";
+            else if (valStr.includes("6-8") || valStr.includes("6 to 8")) goal = "Increase by 1-2 glasses/day.";
+            else if (valStr.includes(">8") || valStr.includes("more than 8") || valStr.match(/^10/)) {
+                goal = "[OK] Excellent! Continue your current hydration habit.";
+                current = "More than 8 glasses/day";
+            }
+            else goal = "[OK] Excellent! Continue maintaining this healthy habit.";
+        } else if (category === "Sleep") {
+            recommended = "8-10 hours/day";
+            why = "Consistent and adequate sleep is crucial for preventing headache triggers.";
+            if (valStr.includes("<4") || valStr.includes("less than 4")) goal = "Increase sleep by approximately 4-6 hours/night.";
+            else if (valStr.includes("4-6") || valStr.includes("4 to 6")) goal = "Increase sleep by approximately 2-4 hours/night.";
+            else if (valStr.includes("6-8") || valStr.includes("6 to 8")) goal = "Increase sleep by approximately 1-2 hours/night.";
+            else if (valStr.includes("8-10") || valStr.includes("8 to 10") || valStr.match(/^10/)) {
+                goal = "[OK] Excellent! Continue maintaining your sleep schedule.";
+            }
+            else if (valStr.includes(">10") || valStr.includes("more than 10")) goal = "Maintain unless otherwise advised by your healthcare provider.";
+            else goal = "[OK] Excellent! Continue maintaining this healthy habit.";
+        } else if (category === "Food") {
+            recommended = "Never skips meals";
+            why = "Regular meals maintain stable blood sugar levels, preventing hunger-triggered headaches.";
+            if (valStr.includes("most days")) goal = "Begin eating regular meals daily.";
+            else if (valStr.includes("frequently")) goal = "Reduce skipped meals significantly.";
+            else if (valStr.includes("occasionally")) goal = "Avoid skipping meals and aim for regular daily meals.";
+            else if (valStr.includes("never") || valStr.match(/^10/)) {
+                goal = "[OK] Excellent! Continue maintaining regular meals.";
+            }
+            else if (valStr.includes("skips meals")) goal = "Reduce skipped meals.";
+            else goal = "[OK] Excellent! Continue maintaining this healthy habit.";
+        } else if (category === "Relaxation") {
+            recommended = "More than 30 minutes/day";
+            why = "Daily relaxation helps manage stress, a major contributor to tension and migraine headaches.";
+            if (valStr.includes("no relaxation")) goal = "Increase relaxation by at least 30 minutes/day.";
+            else if (valStr.includes("<10") || valStr.includes("less than 10")) goal = "Increase by approximately 20-30 minutes/day.";
+            else if (valStr.includes("10-20") || valStr.includes("10 to 20")) goal = "Increase by approximately 10-20 minutes/day.";
+            else if (valStr.includes("20-30") || valStr.includes("20 to 30")) goal = "Increase by approximately 10 minutes/day.";
+            else if (valStr.includes(">30") || valStr.includes("more than 30") || valStr.match(/^10/)) {
+                goal = "[OK] Excellent! Continue maintaining your relaxation routine.";
+            }
+            else goal = "[OK] Excellent! Continue maintaining this healthy habit.";
+        } else if (category === "Exercise") {
+            recommended = "More than 2 hours/day";
+            why = "Regular physical activity reduces headache frequency and intensity by improving overall health.";
+            if (valStr.includes("no exercise")) goal = "Increase activity gradually toward at least 30 minutes/day.";
+            else if (valStr.includes("<30") || valStr.includes("less than 30")) goal = "Increase activity by about 30-90 minutes/day.";
+            else if (valStr.includes("30-60") || valStr.includes("30 to 60")) goal = "Increase activity by approximately 1-1.5 hours/day.";
+            else if (valStr.includes("1-2") || valStr.includes("1 to 2")) goal = "Increase activity by approximately 30-60 minutes/day.";
+            else if (valStr.includes(">2") || valStr.includes("more than 2") || valStr.match(/^10/)) {
+                goal = "[OK] Excellent! Continue your current activity level.";
+            }
+            else goal = "[OK] Excellent! Continue maintaining this healthy habit.";
+        } else if (category === "Screen time") {
+            recommended = "Less than 15 minutes/day";
+            why = "Reducing screen time decreases eye strain and digital fatigue, common headache triggers.";
+            if (valStr.includes(">2") || valStr.includes("more than 2")) goal = "Reduce screen time by approximately 2 hours/day.";
+            else if (valStr.includes("1-2") || valStr.includes("1 to 2")) goal = "Reduce by approximately 1 hour/day.";
+            else if (valStr.includes("30-60") || valStr.includes("30 to 60")) goal = "Reduce by approximately 30 minutes/day.";
+            else if (valStr.includes("15-30") || valStr.includes("15 to 30")) goal = "Reduce by approximately 15 minutes/day.";
+            else if (valStr.includes("<15") || valStr.includes("less than 15") || valStr.match(/^10/)) {
+                goal = "[OK] Excellent! Continue limiting your screen time.";
+            }
+            else goal = "[OK] Excellent! Continue maintaining this healthy habit.";
+        }
+        
+        return { current, recommended, goal, why };
     };
 
     // === Extract Data ===
@@ -218,7 +364,7 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
     const redFlags = getRedFlagSummary(form);
     const familyRows = form.familyRows || [];
 
-    // --- Pre-compute Special Notes and Dynamic Spacing ---
+    // --- Pre-compute Special Notes ---
     const notesList = collectSpecialNoticeFieldsOnly(form);
     const allNotes = notesList.join(" | ");
     
@@ -235,64 +381,24 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
     const noteLineH = 3.5;
     const footPadBot = 4;
     const naturalFootH = footTitleH + (noteLines.length * noteLineH) + footPadBot;
+    const textBlockH = noteLines.length * noteLineH;
 
-    // Default variable gaps
-    let gapPreg = 11.0;
-    let gapHeadache = 8.0;
-    let gapImp = 1.5;
-    let gapFressh = 4.0;
-    let gapRecs = 10.5;
-    let gapNotes = 8.0;
-
-    const maxUsableY = P_HEIGHT - M_BOTTOM; // 203.0
-    // Sum of constants = 160.6
-    let totalHeight = 160.6 + gapPreg + gapHeadache + gapImp + gapFressh + gapRecs + gapNotes + naturalFootH;
-    let overflow = totalHeight - maxUsableY;
-
-    if (overflow > 0) {
-        const reduceNotes = Math.min(5.0, overflow);
-        gapNotes -= reduceNotes;
-        overflow -= reduceNotes;
-    }
-    if (overflow > 0) {
-        const reduceFressh = Math.min(3.0, overflow);
-        gapFressh -= reduceFressh;
-        overflow -= reduceFressh;
-    }
-    if (overflow > 0) {
-        const reducePreg = Math.min(2.5, overflow);
-        gapPreg -= reducePreg;
-        overflow -= reducePreg;
-    }
-    if (overflow > 0) {
-        const reduceRecs = Math.min(2.0, overflow);
-        gapRecs -= reduceRecs;
-        overflow -= reduceRecs;
-    }
-    if (overflow > 0) {
-        const reduceHeadache = Math.min(2.0, overflow);
-        gapHeadache -= reduceHeadache;
-        overflow -= reduceHeadache;
-    }
-    if (overflow > 0) {
-        const reduceImp = Math.min(1.0, overflow);
-        gapImp -= reduceImp;
-        overflow -= reduceImp;
-    }
-
-    // Header
+    // ==========================================
+    // PAGE 1: Demographics, History, Assessment
+    // ==========================================
     drawHeader();
     
-    // Top Demographics
+    // Top Demographics (Task 1: compressed layout with bh = 5.0)
+    const bh = 5.0;
     const bw = (U_WIDTH - 4) / 3;
-    drawFieldBox("Patient ID", p.registrationCode || "N/A", M_LEFT, y, bw, 6.5); 
-    drawFieldBox("Age / Gender", \`\${p.age || "N/A"} / \${p.gender || "N/A"}\`, M_LEFT + bw + 2, y, bw, 6.5);
-    drawFieldBox("Ethnicity", p.ethnicity || "N/A", M_LEFT + bw*2 + 4, y, bw, 6.5);
-    y += 7.0; 
-    drawFieldBox("Referral", form.referral?.source || "N/A", M_LEFT, y, bw, 6.5);
-    drawFieldBox("Visit Type", form.clinicPath?.initiatedBy || "N/A", M_LEFT + bw + 2, y, bw, 6.5);
-    drawFieldBox("Previous Diagnosis", form.clinicPath?.previousDiagnosis || "N/A", M_LEFT + bw*2 + 4, y, bw, 6.5);
-    y += gapPreg; 
+    drawFieldBox("Patient ID", p.registrationCode || "N/A", M_LEFT, y, bw, bh); 
+    drawFieldBox("Age / Gender", \`\${p.age || "N/A"} / \${p.gender || "N/A"}\`, M_LEFT + bw + 2, y, bw, bh);
+    drawFieldBox("Ethnicity", p.ethnicity || "N/A", M_LEFT + bw*2 + 4, y, bw, bh);
+    y += bh + 1.5; 
+    drawFieldBox("Referral", form.referral?.source || "N/A", M_LEFT, y, bw, bh);
+    drawFieldBox("Visit Type", form.clinicPath?.initiatedBy || "N/A", M_LEFT + bw + 2, y, bw, bh);
+    drawFieldBox("Previous Diagnosis", form.clinicPath?.previousDiagnosis || "N/A", M_LEFT + bw*2 + 4, y, bw, bh);
+    y += bh + 4.5; 
 
     // Pregnancy / Birth / Family
     const parityObj = parseParity(b.parity);
@@ -321,56 +427,36 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
     doc.setFont("helvetica", "bold"); doc.setTextColor(...C_MUTED); doc.text("Mother", M_LEFT + U_WIDTH / 2 + 2, y);
     doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT); 
     doc.text(truncateSmart(\`\${mother.age || "?"}y, \${mother.issues?.length ? mother.issues.join(",") : "None"}\`, 45), M_LEFT + U_WIDTH / 2 + 20, y);
-    y += 2.2; 
+    y += 2.5; 
     
     doc.setFont("helvetica", "bold"); doc.setTextColor(...C_MUTED); doc.text("Gestation", M_LEFT + 2, y);
     doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT); doc.text(truncateSmart(\`\${b.gestation || "-"} wks\`, 25), M_LEFT + 20, y);
     doc.setFont("helvetica", "bold"); doc.setTextColor(...C_MUTED); doc.text("Father", M_LEFT + U_WIDTH / 2 + 2, y);
     doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT); 
     doc.text(truncateSmart(\`\${father.age || "?"}y, \${father.issues?.length ? father.issues.join(",") : "None"}\`, 45), M_LEFT + U_WIDTH / 2 + 20, y);
-    y += 2.2;
+    y += 2.5;
     
     doc.setFont("helvetica", "bold"); doc.setTextColor(...C_MUTED); doc.text("Birth Method", M_LEFT + 2, y);
     doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT); doc.text(truncateSmart(b.delivery || "-", 25), M_LEFT + 20, y);
     doc.setFont("helvetica", "bold"); doc.setTextColor(...C_MUTED); doc.text("Siblings", M_LEFT + U_WIDTH / 2 + 2, y);
     doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT); doc.text(truncateSmart(sibDetails, 45), M_LEFT + U_WIDTH / 2 + 20, y);
-    y += 2.2;
+    y += 2.5;
     
     doc.setFont("helvetica", "bold"); doc.setTextColor(...C_MUTED); doc.text("Consanguinity", M_LEFT + 2, y);
     doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT); doc.text(truncateSmart(b.consanguinity || "-", 25), M_LEFT + 20, y);
-    y += 2.0; 
+    y += 4.5; 
 
     // Childhood / Neonatal (Soft Card)
     doc.setFillColor(...C_CYAN);
-    doc.roundedRect(M_LEFT, y, U_WIDTH, 8.5, 0.7, 0.7, "F"); 
+    doc.roundedRect(M_LEFT, y, U_WIDTH, 9.5, 0.7, 0.7, "F"); 
     doc.setFont("helvetica", "bold"); doc.setFontSize(5); doc.setTextColor(...C_ACCENT);
     doc.text("Childhood / Neonatal Notes:", M_LEFT + 1.5, y + 3); 
     doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT);
     doc.text(truncateSmart(\`Complications: \${peri.complications || "None"} | PBU Stay: \${peri.pbuStay === "Y" ? peri.pbuDays + " days" : "No"} | Notes: \${peri.other || "None"}\`, 120), M_LEFT + 25, y + 3);
-    doc.text(truncateSmart(\`Early Childhood Illnesses: \${med.pastMedical || "None recorded"}\`, 150), M_LEFT + 1.5, y + 6.5); 
-    y += 9.0; 
+    doc.text(truncateSmart(\`Early Childhood Illnesses: \${med.pastMedical || "None recorded"}\`, 150), M_LEFT + 1.5, y + 7); 
+    y += 13.5; 
 
     // Past Medical + Development Cards
-    const drawCard = (cx, cy, cw, title, lines) => {
-        doc.setDrawColor(...C_BORDER); doc.setFillColor(...C_WHITE);
-        doc.roundedRect(cx, cy, cw, 13.5, 0.7, 0.7, "FD"); 
-        doc.setFont("helvetica", "bold"); doc.setFontSize(5); doc.setTextColor(...C_ACCENT);
-        doc.text(title.toUpperCase(), cx + 2, cy + 3); 
-        
-        let ly = cy + 5.5; 
-        lines.forEach(l => {
-            if(!l) return;
-            doc.setFont("helvetica", "bold"); doc.setFontSize(4.5); doc.setTextColor(...C_MUTED); 
-            doc.text(l[0], cx + 2, ly);
-            
-            doc.setFont("helvetica", "normal"); doc.setFontSize(4.5); doc.setTextColor(...C_TEXT);
-            const val = cleanPatientSummaryText(l[1]);
-            const splitVal = doc.splitTextToSize(val, cw - 20);
-            doc.text(splitVal[0] || "", cx + 19, ly);
-            ly += 2.5; 
-        });
-    };
-    
     const cardW = U_WIDTH / 2 - 1.5;
     drawCard(M_LEFT, y, cardW, "Past Medical Issues", [
         ["Medical", med.pastMedical || "None"],
@@ -382,10 +468,7 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
         ["Fine Motor", dev.fineMotorIssue === "Yes" ? dev.fineMotorDescribe : "Normal"],
         ["Speech", dev.speechIssue === "Yes" ? dev.speechDescribe : "Normal"]
     ]);
-    y += 14.0; 
-
-    // ---- Consistent section gap before HEADACHE FEATURES ----
-    y += gapHeadache;
+    y += 18.0; 
 
     // Headache Features (Full Width Card, Spacious 2 Columns)
     y = drawSectionTitle("Headache Features", y);
@@ -397,22 +480,6 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
     
     const colW = (U_WIDTH - 4) / 2;
     
-    // Draw feature block helper to wrap text and prevent overflow
-    const drawFeatureBlock = (label, value, fx, fy, fw, fh) => {
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(4.5);
-        doc.setTextColor(...C_MUTED);
-        doc.text(label, fx, fy);
-        
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(5);
-        doc.setTextColor(...C_TEXT);
-        
-        const lines = doc.splitTextToSize(cleanPatientSummaryText(value), fw);
-        const maxLines = Math.floor(fh / 2.3);
-        doc.text(lines.slice(0, maxLines), fx, fy + 1.8); 
-    };
-
     // Column 1
     drawFeatureBlock("HISTORY & PATTERN", \`\${h.durationYears || 0}y \${h.durationMonths || 0}m | \${h.pattern || "N/A"}\`, M_LEFT + 2, y + 3, colW - 4, 4.5); 
     drawFeatureBlock("LOCATION & SIDE", formatArraySmart(h.location, 3) + (h.frontalSide ? \` (Frontal: \${h.frontalSide})\` : "") + (h.temporalSide ? \` (Temporal: \${h.temporalSide})\` : ""), M_LEFT + 2, y + 8, colW - 4, 4.5); 
@@ -425,10 +492,114 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
     drawFeatureBlock("AURA & PRODROME", \`Aura: \${t.aura?.hasAura === "Yes" ? formatArraySmart(t.aura.symptoms, 2) : "No"} | Prod: \${t.prodromal?.hasProdromal === "Yes" ? "Yes" : "No"} | Post: \${t.postdrome?.hasPostdrome === "Yes" ? "Yes" : "No"}\`, M_LEFT + colW + 2, y + 13.5, colW - 4, 4.5);
     drawFeatureBlock("TRIGGERS & RELIEF", \`Trig: \${formatArraySmart(h.aggravating, 3)} | Rel: \${formatArraySmart(h.relief, 3)}\`, M_LEFT + colW + 2, y + 19, colW - 4, 5.5);
 
-    y += hCardHeight + 2; 
+    drawFooter(1);
 
-    // ---- Gap between Headache Features and clinical impression cards ----
-    y += gapImp; 
+    // ==========================================
+    // PAGE 2: Investigations, Medications, Clinical Impressions & Recommendations
+    // ==========================================
+    doc.addPage();
+    y = M_TOP;
+    drawHeader();
+    drawFooter(2);
+    
+    // --- Parse Investigations with Legacy Compatibility ---
+    const legacyTests = Array.isArray(form.examination?.tests) ? form.examination.tests : [];
+    const inv = {
+        fbc: { checked: legacyTests.includes("FBC"), result: "Normal", ...(form.examination?.investigations?.fbc || {}) },
+        crp: { checked: legacyTests.includes("CRP"), result: "Normal", ...(form.examination?.investigations?.crp || {}) },
+        esr: { checked: legacyTests.includes("ESR"), result: "Normal", ...(form.examination?.investigations?.esr || {}) },
+        brainImaging: { checked: legacyTests.includes("Brain Imaging"), imagingType: "CT Brain", result: "Normal", finding: "", ...(form.examination?.investigations?.brainImaging || {}) },
+        ophthalmology: { checked: false, result: "Normal", ...(form.examination?.investigations?.ophthalmology || {}) },
+        ...(form.examination?.investigations || {})
+    };
+
+    // Investigations Layout (Task 6)
+    y = drawSectionTitle("Investigations", y);
+    y += 1;
+    
+    const invHeight = 16.0;
+    doc.setDrawColor(...C_BORDER); doc.setFillColor(...C_WHITE);
+    doc.roundedRect(M_LEFT, y, U_WIDTH, invHeight, 0.7, 0.7, "FD");
+    
+    const colW3 = (U_WIDTH - 6) / 3;
+    
+    // Column 1: Blood Tests
+    doc.setFont("helvetica", "bold"); doc.setFontSize(5); doc.setTextColor(...C_ACCENT);
+    doc.text("BLOOD TESTS", M_LEFT + 2, y + 3);
+    
+    doc.setFont("helvetica", "normal"); doc.setFontSize(4.5); doc.setTextColor(...C_TEXT);
+    let bloodY = y + 6;
+    if (inv.fbc?.checked) {
+        doc.text(\`FBC ............. \${inv.fbc.result}\`, M_LEFT + 2, bloodY);
+        bloodY += 2.5;
+    }
+    if (inv.crp?.checked) {
+        doc.text(\`CRP ............. \${inv.crp.result}\`, M_LEFT + 2, bloodY);
+        bloodY += 2.5;
+    }
+    if (inv.esr?.checked) {
+        doc.text(\`ESR ............. \${inv.esr.result}\`, M_LEFT + 2, bloodY);
+        bloodY += 2.5;
+    }
+    if (!inv.fbc?.checked && !inv.crp?.checked && !inv.esr?.checked) {
+        doc.setFont("helvetica", "italic"); doc.setTextColor(...C_MUTED);
+        doc.text("None checked", M_LEFT + 2, bloodY);
+        doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT);
+    }
+    
+    // Column 2: Brain Imaging
+    doc.setFont("helvetica", "bold"); doc.setFontSize(5); doc.setTextColor(...C_ACCENT);
+    doc.text("BRAIN IMAGING", M_LEFT + colW3 + 4, y + 3);
+    
+    doc.setFont("helvetica", "normal"); doc.setFontSize(4.5); doc.setTextColor(...C_TEXT);
+    let imgY = y + 6;
+    if (inv.brainImaging?.checked) {
+        doc.setFont("helvetica", "bold");
+        doc.text(inv.brainImaging.imagingType || "Brain Scan", M_LEFT + colW3 + 4, imgY);
+        doc.setFont("helvetica", "normal");
+        imgY += 2.5;
+        doc.text(\`Result: \${inv.brainImaging.result || "Normal"}\`, M_LEFT + colW3 + 4, imgY);
+        imgY += 2.5;
+        doc.text(\`Finding: \${inv.brainImaging.finding || "None"}\`, M_LEFT + colW3 + 4, imgY);
+    } else {
+        doc.setFont("helvetica", "italic"); doc.setTextColor(...C_MUTED);
+        doc.text("None checked", M_LEFT + colW3 + 4, imgY);
+        doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT);
+    }
+    
+    // Column 3: Ophthalmology
+    doc.setFont("helvetica", "bold"); doc.setFontSize(5); doc.setTextColor(...C_ACCENT);
+    doc.text("OPHTHALMOLOGY", M_LEFT + colW3*2 + 6, y + 3);
+    
+    doc.setFont("helvetica", "normal"); doc.setFontSize(4.5); doc.setTextColor(...C_TEXT);
+    let ophY = y + 6;
+    if (inv.ophthalmology?.checked) {
+        doc.text(\`Result: \${inv.ophthalmology.result || "Normal"}\`, M_LEFT + colW3*2 + 6, ophY);
+    } else {
+        doc.setFont("helvetica", "italic"); doc.setTextColor(...C_MUTED);
+        doc.text("None checked", M_LEFT + colW3*2 + 6, ophY);
+        doc.setFont("helvetica", "normal"); doc.setTextColor(...C_TEXT);
+    }
+    
+    y += invHeight + 2;
+
+    // Medications (Task 7)
+    y = drawSectionTitle("Medications", y);
+    y += 1;
+    
+    const meds = Array.isArray(form.final?.medications) ? form.final.medications : [];
+    if (meds.length === 0) {
+        doc.setFont("helvetica", "italic"); doc.setFontSize(5.5); doc.setTextColor(...C_MUTED);
+        doc.text("No headache medications selected.", M_LEFT + 2, y);
+        y += 4.5;
+    } else {
+        doc.setFont("helvetica", "normal"); doc.setFontSize(5); doc.setTextColor(...C_TEXT);
+        meds.forEach(med => {
+            doc.text(\`• \${med}\`, M_LEFT + 2, y);
+            y += 2.5;
+        });
+        y += 2.0;
+    }
 
     // Primary & Secondary Headache Sections Side-by-Side
     const impressionH = 32.5; 
@@ -552,37 +723,6 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
         
         itemY += 2.5; 
     });
-    
-    // User manual secondary notes cleaner
-    const cleanUserNotesOnly = (text) => {
-        if (!text) return "";
-        const isGeneratedJargon = (line) => {
-            const l = line.toLowerCase();
-            const patterns = [
-                "suggested because", "previous diagnosis", "previous treatment",
-                "referral source", "developmental concern", "developmental history concern",
-                "prodromal symptoms", "aura symptoms", "suggested review", "postdrome reported",
-                "chronic headache history", "doctor review note", "medicine used for headache",
-                "frequent medicine use", "severity score from page", "migraine-supporting",
-                "lifestyle note", "previous response:", "premonitory symptoms",
-                "headache impact reported", "headache reported yesterday", "medicine taken yesterday",
-                "suggested check", "medication safety warning", "red flag selected",
-                "clinical/research review", "clinician confirmation", "not a diagnosis",
-                "doctor must", "clinician must", "see full clinical",
-                "possible non-primary", "possible ent-related", "possible secondary",
-                "possible tm joint-related", "check current/past", "medication safety"
-            ];
-            return patterns.some(p => l.includes(p));
-        };
-
-        const lines = String(text)
-            .split(/\\n+|\\s*\\|\\s*/)
-            .map(line => line.trim())
-            .filter(Boolean)
-            .filter(line => !isGeneratedJargon(line));
-        
-        return lines.join(", ");
-    };
 
     // Secondary Notes if available
     const secNotes = cleanUserNotesOnly(form.medical?.secondaryStatus);
@@ -627,94 +767,15 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
     doc.setFont("helvetica", "bold"); doc.setFontSize(5.5); doc.setTextColor(...C_ACCENT);
     doc.text(\`\${fresshTotal} / 60\`, fx + 18, y + 2.8);
     
-    y += gapRecs; 
+    y += 7.0; 
 
-    // Personalized Lifestyle Recommendations
-    y = drawSectionTitle("Personalized Lifestyle Recommendations", y);
+    // Personalized Recommendations
+    y = drawSectionTitle("Personalized Recommendations", y);
     y += 1;
     
     doc.setFont("helvetica", "normal"); doc.setFontSize(5.5); doc.setTextColor(...C_MUTED);
     doc.text("Based on your current lifestyle assessment, the following recommendations are suggested to help improve your overall health and reduce headache risk.", M_LEFT + 2, y, { maxWidth: U_WIDTH - 4 });
     y += 4.0; 
-
-    const getRecommendation = (category, value) => {
-        const valStr = String(value || "").toLowerCase();
-        let current = value ? String(value).replace(/^\\d+\\s*-\\s*/, '') : "Not provided";
-        let goal = "";
-        let why = "";
-        let recommended = "";
-        
-        if (category === "Hydration") {
-            recommended = "More than 8 glasses/day";
-            why = "Adequate hydration supports brain function and may help reduce headaches.";
-            if (valStr.includes("<2") || valStr.includes("less than 2")) goal = "Increase by 6-8 glasses/day.";
-            else if (valStr.includes("2-4") || valStr.includes("2-4") || valStr.includes("2 to 4")) goal = "Increase by 4-6 glasses/day.";
-            else if (valStr.includes("4-6") || valStr.includes("4-6") || valStr.includes("4 to 6")) goal = "Increase by 2-4 glasses/day.";
-            else if (valStr.includes("6-8") || valStr.includes("6-8") || valStr.includes("6 to 8")) goal = "Increase by 1-2 glasses/day.";
-            else if (valStr.includes(">8") || valStr.includes("more than 8") || valStr.match(/^10/)) {
-                goal = "[OK] Excellent! Continue your current hydration habit.";
-                current = "More than 8 glasses/day";
-            }
-            else goal = "[OK] Excellent! Continue maintaining this healthy habit.";
-        } else if (category === "Sleep") {
-            recommended = "8-10 hours/day";
-            why = "Consistent and adequate sleep is crucial for preventing headache triggers.";
-            if (valStr.includes("<4") || valStr.includes("less than 4")) goal = "Increase sleep by approximately 4-6 hours/night.";
-            else if (valStr.includes("4-6") || valStr.includes("4-6") || valStr.includes("4 to 6")) goal = "Increase sleep by approximately 2-4 hours/night.";
-            else if (valStr.includes("6-8") || valStr.includes("6-8") || valStr.includes("6 to 8")) goal = "Increase sleep by approximately 1-2 hours/night.";
-            else if (valStr.includes("8-10") || valStr.includes("8-10") || valStr.includes("8 to 10") || valStr.match(/^10/)) {
-                goal = "[OK] Excellent! Continue maintaining your sleep schedule.";
-            }
-            else if (valStr.includes(">10") || valStr.includes("more than 10")) goal = "Maintain unless otherwise advised by your healthcare provider.";
-            else goal = "[OK] Excellent! Continue maintaining this healthy habit.";
-        } else if (category === "Food") {
-            recommended = "Never skips meals";
-            why = "Regular meals maintain stable blood sugar levels, preventing hunger-triggered headaches.";
-            if (valStr.includes("most days")) goal = "Begin eating regular meals daily.";
-            else if (valStr.includes("frequently")) goal = "Reduce skipped meals significantly.";
-            else if (valStr.includes("occasionally")) goal = "Avoid skipping meals and aim for regular daily meals.";
-            else if (valStr.includes("never") || valStr.match(/^10/)) {
-                goal = "[OK] Excellent! Continue maintaining regular meals.";
-            }
-            else if (valStr.includes("skips meals")) goal = "Reduce skipped meals.";
-            else goal = "[OK] Excellent! Continue maintaining this healthy habit.";
-        } else if (category === "Relaxation") {
-            recommended = "More than 30 minutes/day";
-            why = "Daily relaxation helps manage stress, a major contributor to tension and migraine headaches.";
-            if (valStr.includes("no relaxation")) goal = "Increase relaxation by at least 30 minutes/day.";
-            else if (valStr.includes("<10") || valStr.includes("less than 10")) goal = "Increase by approximately 20-30 minutes/day.";
-            else if (valStr.includes("10-20") || valStr.includes("10-20") || valStr.includes("10 to 20")) goal = "Increase by approximately 10-20 minutes/day.";
-            else if (valStr.includes("20-30") || valStr.includes("20-30") || valStr.includes("20 to 30")) goal = "Increase by approximately 10 minutes/day.";
-            else if (valStr.includes(">30") || valStr.includes("more than 30") || valStr.match(/^10/)) {
-                goal = "[OK] Excellent! Continue maintaining your relaxation routine.";
-            }
-            else goal = "[OK] Excellent! Continue maintaining this healthy habit.";
-        } else if (category === "Exercise") {
-            recommended = "More than 2 hours/day";
-            why = "Regular physical activity reduces headache frequency and intensity by improving overall health.";
-            if (valStr.includes("no exercise")) goal = "Increase activity gradually toward at least 30 minutes/day.";
-            else if (valStr.includes("<30") || valStr.includes("less than 30")) goal = "Increase activity by about 30-90 minutes/day.";
-            else if (valStr.includes("30-60") || valStr.includes("30-60") || valStr.includes("30 to 60")) goal = "Increase activity by approximately 1-1.5 hours/day.";
-            else if (valStr.includes("1-2") || valStr.includes("1-2") || valStr.includes("1 to 2")) goal = "Increase activity by approximately 30-60 minutes/day.";
-            else if (valStr.includes(">2") || valStr.includes("more than 2") || valStr.match(/^10/)) {
-                goal = "[OK] Excellent! Continue your current activity level.";
-            }
-            else goal = "[OK] Excellent! Continue maintaining this healthy habit.";
-        } else if (category === "Screen time") {
-            recommended = "Less than 15 minutes/day";
-            why = "Reducing screen time decreases eye strain and digital fatigue, common headache triggers.";
-            if (valStr.includes(">2") || valStr.includes("more than 2")) goal = "Reduce screen time by approximately 2 hours/day.";
-            else if (valStr.includes("1-2") || valStr.includes("1-2") || valStr.includes("1 to 2")) goal = "Reduce by approximately 1 hour/day.";
-            else if (valStr.includes("30-60") || valStr.includes("30-60") || valStr.includes("30 to 60")) goal = "Reduce by approximately 30 minutes/day.";
-            else if (valStr.includes("15-30") || valStr.includes("15-30") || valStr.includes("15 to 30")) goal = "Reduce by approximately 15 minutes/day.";
-            else if (valStr.includes("<15") || valStr.includes("less than 15") || valStr.match(/^10/)) {
-                goal = "[OK] Excellent! Continue limiting your screen time.";
-            }
-            else goal = "[OK] Excellent! Continue maintaining this healthy habit.";
-        }
-        
-        return { current, recommended, goal, why };
-    };
 
     const lifestyleRecs = [
         { cat: "Hydration", val: form.fressh?.["Hydration"] },
@@ -725,7 +786,6 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
         { cat: "Screen time", val: form.fressh?.["Screen time"] },
     ];
 
-    // ---- Recommendation card sizing ----
     const recCardH = 13;
     const recRowGap = 3;
     const recColWidth = (U_WIDTH - 6) / 3;
@@ -772,19 +832,19 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
 
     const recSectionBottom = y; 
 
-    // Determine final height and position for Special Notes
-    const footH = naturalFootH;
-    const footY = recSectionBottom + gapNotes;
+    // Special Notes
+    const footY = recSectionBottom + 2.0;
 
     // Divider before Special Notes
     doc.setDrawColor(...C_BORDER);
     doc.setLineWidth(0.3);
-    doc.line(M_LEFT, footY - 2, P_WIDTH - M_RIGHT, footY - 2); 
+    doc.line(M_LEFT, footY - 1, P_WIDTH - M_RIGHT, footY - 1); 
 
+    const specNotesH = Math.max(12, naturalFootH);
     doc.setFillColor(...C_BG_LIGHT);
     doc.setDrawColor(...C_BORDER);
     doc.setLineWidth(0.2);
-    doc.roundedRect(M_LEFT, footY, U_WIDTH, footH, 0.7, 0.7, "FD"); 
+    doc.roundedRect(M_LEFT, footY, U_WIDTH, specNotesH, 0.7, 0.7, "FD"); 
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(5.5);
@@ -795,9 +855,7 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
     doc.setFontSize(4.5);
     doc.setTextColor(...C_TEXT);
     
-    // Vertically center notes if very few lines vs available height
-    const textBlockH = noteLines.length * noteLineH;
-    const innerH = footH - footTitleH - footPadBot;
+    const innerH = specNotesH - footTitleH - footPadBot;
     const textStartOffset = innerH > textBlockH ? (innerH - textBlockH) / 2 : 0;
     let noteY = footY + footTitleH + textStartOffset;
     noteLines.forEach(l => {
@@ -806,10 +864,24 @@ const optimizedFunction = `export function generatePatientReportPdf(form, fressh
     });
 
     doc.save(\`BeatHeadache-Patient-Summary-\${cleanPatientSummaryText(p.registrationCode) !== "None" ? p.registrationCode : "Report"}.pdf\`);
+}`;
+
+const startMarker = 'export function generatePatientReportPdf';
+const endMarker = 'export function generateDoctorReportPdf';
+
+const startIndex = content.indexOf(startMarker);
+const endIndex = content.indexOf(endMarker);
+
+if (startIndex === -1 || endIndex === -1) {
+    console.error("Could not find generation functions markers");
+    process.exit(1);
 }
 
-﻿`;
+// Find the last closing brace before the doctor report generator
+const textBeforeDoctor = content.substring(0, endIndex);
+const lastClosingBrace = textBeforeDoctor.lastIndexOf('}');
 
-const newCode = code.substring(0, startIndex) + optimizedFunction + code.substring(endIndex);
-fs.writeFileSync(path, newCode, 'utf8');
-console.log('Update complete.');
+const finalContent = content.substring(0, startIndex) + newFunc + '\\n\\n' + content.substring(lastClosingBrace + 1);
+
+fs.writeFileSync(filePath, finalContent, 'utf8');
+console.log("Successfully patched reportUtils.js!");

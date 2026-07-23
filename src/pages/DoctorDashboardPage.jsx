@@ -2,7 +2,7 @@ import React from "react";
 import { useAuth } from "../context/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  UserPlus, Search, FileText, LogOut, CheckCircle, Stethoscope,
+  UserPlus, Search, FileText, LogOut, CheckCircle, Stethoscope, Camera,
 } from "lucide-react";
 
 function DebugPanel({ userProfile }) {
@@ -67,7 +67,7 @@ export default function DoctorDashboardPage() {
         </header>
 
         {/* Quick Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
 
           {/* New Patient */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col">
@@ -84,6 +84,24 @@ export default function DoctorDashboardPage() {
               className="inline-flex items-center gap-1.5 text-blue-600 font-medium text-sm hover:underline mt-auto"
             >
               Start Registration →
+            </Link>
+          </div>
+
+          {/* Scan Patient QR */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col">
+            <div className="bg-blue-50 w-12 h-12 rounded-xl flex items-center justify-center text-blue-600 mb-4">
+              <Camera className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-1">Scan Patient QR</h3>
+            <p className="text-gray-500 text-sm mb-5 flex-grow">
+              Instantly retrieve a patient's clinical history by scanning their secure QR access token.
+            </p>
+            <Link
+              to="/doctor/scan"
+              id="qr-scan-link"
+              className="inline-flex items-center gap-1.5 text-blue-600 font-medium text-sm hover:underline mt-auto"
+            >
+              Open QR Scanner →
             </Link>
           </div>
 

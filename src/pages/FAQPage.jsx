@@ -126,7 +126,7 @@ export default function FAQPage() {
             </div>
             
             <p className="text-[10px] text-slate-400 text-center font-normal">
-              No login required • Free clinical PDFs
+              
             </p>
           </div>
 
