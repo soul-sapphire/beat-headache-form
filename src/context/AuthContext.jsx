@@ -36,6 +36,7 @@ export function AuthProvider({ children }) {
   };
 
   const fetchUserProfile = useCallback(async (user) => {
+    console.log("[AuthContext] fetchUserProfile START for user:", user?.uid);
     if (!user) {
       setUserProfile(null);
       setAuthError(null);
@@ -43,7 +44,9 @@ export function AuthProvider({ children }) {
     }
     try {
       const docRef = doc(db, "users", user.uid);
+      console.log("[AuthContext] getDoc for user profile starting...");
       const docSnap = await getDoc(docRef);
+      console.log("[AuthContext] user profile getDoc complete. exists =", docSnap.exists());
       if (docSnap.exists()) {
         setUserProfile(normalizeProfile(user.uid, docSnap.data()));
       } else {

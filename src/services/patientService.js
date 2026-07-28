@@ -65,6 +65,7 @@ export function formatPatientId(firstName, lastName, birthYear, sequence) {
 
 export const addAccessLog = async (patientCode, doctorUid, doctorName, doctorEmail, action) => {
   try {
+    console.log(`[patientService] addAccessLog START - action: ${action}, patientCode: ${patientCode}`);
     const logRef = collection(db, 'patients', patientCode, 'accessLogs');
     await addDoc(logRef, {
       doctorUid,
@@ -73,6 +74,7 @@ export const addAccessLog = async (patientCode, doctorUid, doctorName, doctorEma
       action,
       timestamp: serverTimestamp(),
     });
+    console.log(`[patientService] addAccessLog SUCCESS - action: ${action}`);
   } catch (err) {
     // Non-critical — log but don't throw
     console.error('[patientService] addAccessLog error:', err.code || err.message);
@@ -163,17 +165,23 @@ export const createPatientShell = async (
 export const getPatientByCode = async (
   patientCode, doctorUid, doctorName, doctorEmail, isAdmin
 ) => {
+  console.log(`[patientService] getPatientByCode START for code: ${patientCode}, doctorUid: ${doctorUid}`);
   const patientRef = doc(db, 'patients', patientCode);
+  console.log(`[patientService] getPatientByCode calling getDoc(patientRef)...`);
   const patientDoc = await getDoc(patientRef);
+  console.log(`[patientService] getPatientByCode getDoc finished. exists = ${patientDoc.exists()}`);
 
   if (!patientDoc.exists()) {
+    console.log(`[patientService] getPatientByCode patientDoc does NOT exist.`);
     return null; // Not found
   }
 
   const patientData = patientDoc.data();
   const isLinked = (patientData.linkedDoctorUids || []).includes(doctorUid);
+  console.log(`[patientService] getPatientByCode isLinked = ${isLinked}, isAdmin = ${isAdmin}`);
 
   if (!isLinked && !isAdmin) {
+    console.log(`[patientService] getPatientByCode ACCESS DENIED.`);
     return {
       exists: true,
       accessDenied: true,
@@ -188,13 +196,19 @@ export const getPatientByCode = async (
   if (!activeQrToken) {
     activeQrToken = generateQrToken();
     try {
+      console.log(`[patientService] getPatientByCode backfilling qrToken...`);
       await setDoc(patientRef, { qrToken: activeQrToken, updatedAt: serverTimestamp() }, { merge: true });
+      console.log(`[patientService] getPatientByCode backfilled qrToken success.`);
     } catch (e) {
-      // Non-critical backfill error — proceed with activeQrToken
+      console.error('[patientService] Backfill error:', e);
     }
   }
 
-  await addAccessLog(patientCode, doctorUid, doctorName, doctorEmail, 'patient_viewed');
+  // Non-blocking access log — do NOT await so patient load is never blocked
+  addAccessLog(patientCode, doctorUid, doctorName, doctorEmail, 'patient_viewed').catch((err) => {
+    console.error('[patientService] Non-blocking addAccessLog error (patient_viewed):', err?.message || err);
+  });
+  console.log(`[patientService] getPatientByCode returning patient data immediately.`);
   return {
     exists: true,
     data: {
@@ -237,7 +251,11 @@ export const getPatientByQrToken = async (
     };
   }
 
-  await addAccessLog(patientCode, doctorUid, doctorName, doctorEmail, 'qr_scanned');
+  // Non-blocking access log — do NOT await so QR navigation is never blocked
+  addAccessLog(patientCode, doctorUid, doctorName, doctorEmail, 'qr_scanned').catch((err) => {
+    console.error('[patientService] Non-blocking addAccessLog error (qr_scanned):', err?.message || err);
+  });
+  console.log(`[patientService] getPatientByQrToken returning patient data immediately.`);
   return {
     exists: true,
     data: {
@@ -513,30 +531,43 @@ export const saveEncounterReport = async (
 export const getEncountersForPatient = async (
   patientCode, doctorUid, doctorName, doctorEmail, isAdmin = false
 ) => {
+  console.log(`[patientService] getEncountersForPatient START for code: ${patientCode}`);
   const patientRef = doc(db, 'patients', patientCode);
+  console.log(`[patientService] getEncountersForPatient fetching patientDoc...`);
   const patientDoc = await getDoc(patientRef);
+  console.log(`[patientService] getEncountersForPatient patientDoc fetched. exists = ${patientDoc.exists()}`);
 
   if (!patientDoc.exists()) {
+    console.log(`[patientService] getEncountersForPatient patientDoc does NOT exist. Returning empty array.`);
     return [];
   }
 
   const patientData = patientDoc.data();
   const isLinked = (patientData.linkedDoctorUids || []).includes(doctorUid);
+  console.log(`[patientService] getEncountersForPatient isLinked = ${isLinked}, isAdmin = ${isAdmin}`);
   if (!isLinked && !isAdmin) {
+    console.log(`[patientService] getEncountersForPatient not linked & not admin. Returning empty array.`);
     return [];
   }
 
   const encsRef = collection(db, 'patients', patientCode, 'encounters');
+  console.log(`[patientService] getEncountersForPatient building query...`);
   const q = query(encsRef, orderBy('createdAt', 'desc'));
+  console.log(`[patientService] getEncountersForPatient calling getDocs(q)...`);
   const encsSnap = await getDocs(q);
+  console.log(`[patientService] getEncountersForPatient getDocs(q) returned. size = ${encsSnap.size}`);
 
   const encounters = [];
   encsSnap.forEach((d) => encounters.push({ id: d.id, ...d.data() }));
 
   if (encounters.length > 0) {
-    await addAccessLog(patientCode, doctorUid, doctorName, doctorEmail, 'report_viewed');
+    // Non-blocking access log — do NOT await so encounters load is never blocked
+    addAccessLog(patientCode, doctorUid, doctorName, doctorEmail, 'report_viewed').catch((err) => {
+      console.error('[patientService] Non-blocking addAccessLog error (report_viewed):', err?.message || err);
+    });
   }
 
+  console.log(`[patientService] getEncountersForPatient returning ${encounters.length} encounters.`);
   return encounters;
 };
 

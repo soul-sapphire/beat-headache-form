@@ -45,8 +45,16 @@ export default function ProtectedRoute({ children, allowedRoles }) {
   const { firebaseUser, userProfile, loading, authError, refreshUserProfile } = useAuth();
   const [retrying, setRetrying] = React.useState(false);
 
+  console.log("[ProtectedRoute] Evaluating route access:", {
+    firebaseUser: firebaseUser?.uid,
+    userProfile: userProfile?.role,
+    loading,
+    authError
+  });
+
   // 1. Wait while the initial auth check is in progress
   if (loading) {
+    console.log("[ProtectedRoute] Still loading auth...");
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center space-y-3">

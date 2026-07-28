@@ -12,8 +12,11 @@ import EncounterAnalyticsModal from "../components/patient-profile/EncounterAnal
 import ReportsSection from "../components/patient-profile/ReportsSection";
 
 export default function PatientProfilePage() {
+  console.log("[Profile] 1 Route loaded");
   const { id } = useParams();
-  const { userData, userProfile } = useAuth();
+  console.log("[Profile] 2 id =", id);
+  const { userData, userProfile, loading: authLoading } = useAuth();
+  console.log("[Profile] 3 Auth ready:", { userData, userProfile, authLoading });
   const navigate = useNavigate();
   
   const [patient, setPatient] = useState(null);
@@ -27,7 +30,12 @@ export default function PatientProfilePage() {
   const isAdmin = userProfile?.role === "admin";
 
   const loadData = useCallback(async () => {
-    if (!id) return;
+    console.log("[Profile] 4 loadData() invoked with id:", id);
+    if (!id) {
+      console.log("[Profile] loadData returned early: !id");
+      setLoading(false);
+      return;
+    }
     const activeUser = userData || userProfile;
     const uid = activeUser?.uid || "unknown";
     const name = activeUser?.displayName || "Doctor";
@@ -37,45 +45,51 @@ export default function PatientProfilePage() {
     setError(null);
 
     try {
-      // Parallel loading of all patient-related data as requested for EMR
-      const [patientResult, encountersResult] = await Promise.all([
-        getPatientByCode(
-          id,
-          uid,
-          name,
-          email,
-          isAdmin
-        ),
-        getEncountersForPatient(
-          id,
-          uid,
-          name,
-          email,
-          isAdmin
-        )
-      ]);
+      console.log("[Profile] 5 getPatientByCode() starting for id:", id);
+      const patientResult = await getPatientByCode(
+        id,
+        uid,
+        name,
+        email,
+        isAdmin
+      );
+      console.log("[Profile] 6 Patient loaded:", patientResult);
 
       if (!patientResult) {
+        console.log("[Profile] Patient result null");
         setError("Patient record not found.");
         return;
       }
 
       if (patientResult.accessDenied) {
+        console.log("[Profile] Access denied:", patientResult.message);
         setError(patientResult.message);
         return;
       }
 
       setPatient(patientResult.data);
+
+      console.log("[Profile] 7 Loading encounters starting for id:", id);
+      const encountersResult = await getEncountersForPatient(
+        id,
+        uid,
+        name,
+        email,
+        isAdmin
+      );
+      console.log("[Profile] 8 Encounters loaded:", encountersResult?.length);
       setEncounters(encountersResult || []);
     } catch (err) {
-      console.error("Failed to load patient profile data:", err);
+      console.error("[Profile] Error in loadData:", err);
       setError("An error occurred while loading patient records.");
     } finally {
+      console.log("[Profile] 9 setLoading(false)");
       setLoading(false);
     }
   }, [id, userData, userProfile, isAdmin]);
 
   useEffect(() => {
+    console.log("[Profile] useEffect running loadData");
     loadData();
   }, [loadData]);
 
@@ -102,7 +116,9 @@ export default function PatientProfilePage() {
     }
   };
 
+  console.log("[Profile] 10 Render check: loading =", loading, "patient =", !!patient, "error =", error);
   if (loading) {
+    console.log("[Profile] Rendering loading spinner...");
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center space-y-3">
@@ -112,6 +128,7 @@ export default function PatientProfilePage() {
       </div>
     );
   }
+  console.log("[Profile] 10 Render complete with content.");
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8 lg:p-12">
