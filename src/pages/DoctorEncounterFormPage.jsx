@@ -50,6 +50,7 @@ function extractFresshDetails(form) {
 
 function buildEncounterData(form, fresshTotal) {
   return {
+    qrToken: form?.patient?.qrToken || form?.qrToken || "",
     patientSummaryReport: String(form?.final?.diagnosis ?? ""),
     doctorClinicalReport: String(form?.final?.medicationPlan ?? ""),
     redFlagsSummary: formatRedFlagsSummary(form),

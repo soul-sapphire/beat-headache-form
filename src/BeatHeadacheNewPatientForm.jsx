@@ -682,6 +682,7 @@ const PATIENT_IDENTITY_FIELD_KEYS = [
     "firstName",
     "lastName",
     "registrationCode",
+    "qrToken",
     "age",
     "dob",
     "phone",
@@ -698,6 +699,9 @@ function pickPreservedPatientIdentity(prevPatient, patientContext) {
     }
     if (patientContext?.patientCode && !preserved.registrationCode) {
         preserved.registrationCode = patientContext.patientCode;
+    }
+    if (patientContext?.qrToken && !preserved.qrToken) {
+        preserved.qrToken = patientContext.qrToken;
     }
     if (patientContext?.firstName && !preserved.firstName) {
         preserved.firstName = patientContext.firstName;
@@ -2026,6 +2030,8 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
             init.patient.firstName = patientContext.firstName || "";
             init.patient.lastName = patientContext.lastName || "";
             init.patient.registrationCode = patientContext.patientCode || "";
+            init.patient.qrToken = patientContext.qrToken || "";
+            init.qrToken = patientContext.qrToken || "";
             if (patientContext.birthYear) {
                 init.patient.age = (new Date().getFullYear() - parseInt(patientContext.birthYear)).toString();
             }
@@ -2359,6 +2365,11 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
 
         const formForReport = {
             ...safeForm,
+            qrToken: safeForm.qrToken || safeForm.patient?.qrToken || patientContext?.qrToken || "",
+            patient: {
+                ...safeForm.patient,
+                qrToken: safeForm.patient?.qrToken || safeForm.qrToken || patientContext?.qrToken || "",
+            },
             meta: {
                 ...safeForm.meta,
                 reportGeneratedAt: new Date().toISOString(),

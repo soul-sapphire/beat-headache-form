@@ -27,28 +27,31 @@ export default function QRScannerPage() {
       { facingMode: "environment" },
       config,
       async (decodedText) => {
-        // Success callback
+        console.log("[QRScanner] 1. QR decoded:", decodedText);
         if (!decodedText.startsWith("pt_")) {
-          setError("Invalid QR code format. Must be a secure patient QR token.");
+          console.log("[QRScanner] 2. Validation FAILED for format:", decodedText);
+          setError(`Invalid QR code format (${decodedText}). Must be a secure patient QR token.`);
           return;
         }
 
-        // Stop scanner immediately to avoid multiple scans
+        console.log("[QRScanner] 2. Validation PASSED for:", decodedText);
+
         try {
           await html5QrCode.stop();
           setCameraActive(false);
+          console.log("[QRScanner] Scanner camera stopped.");
         } catch (err) {
-          console.warn("Failed to stop scanner:", err);
+          console.warn("[QRScanner] Failed to stop scanner:", err);
         }
 
-        // Fetch patient by QR token
+        console.log("[QRScanner] 3. Invoking handleQrToken with:", decodedText);
         handleQrToken(decodedText);
       },
       (errorMessage) => {
         // Keep scanning, ignore errors
       }
     ).catch((err) => {
-      console.error("Camera initialisation failed:", err);
+      console.error("[QRScanner] Camera initialisation failed:", err);
       setError("Unable to access camera. Please ensure permissions are granted and no other app is using it.");
       setCameraActive(false);
     });
@@ -61,37 +64,55 @@ export default function QRScannerPage() {
   }, []);
 
   const handleQrToken = async (token) => {
+    console.log("[QRScanner] 4. Starting handleQrToken for token:", token);
     setLoading(true);
     setError(null);
 
+    const activeUser = userData || userProfile;
+    const uid = activeUser?.uid || "unknown-doctor";
+    const name = activeUser?.displayName || "Doctor";
+    const email = activeUser?.email || "";
+    const isUserAdmin = isAdmin || userProfile?.role === "admin";
+
     try {
+      console.log("[QRScanner] 5. Calling getPatientByQrToken with uid:", uid, "isAdmin:", isUserAdmin);
       const result = await getPatientByQrToken(
         token,
-        userData.uid,
-        userData.displayName || "Doctor",
-        userData.email || "",
-        isAdmin
+        uid,
+        name,
+        email,
+        isUserAdmin
       );
 
+      console.log("[QRScanner] 6. getPatientByQrToken returned result:", result);
+
       if (!result) {
+        console.log("[QRScanner] 7. Result NULL (no patient found matching token)");
         setError("No patient record matches this secure QR token.");
         setLoading(false);
-        // Restart scanner if not found
         restartScanner();
         return;
       }
 
       if (result.accessDenied) {
+        console.log("[QRScanner] 7. Access DENIED:", result.message);
         setError(result.message);
         setLoading(false);
         return;
       }
 
-      // Success: Navigate to patient profile page
-      navigate(`/patient/${result.data.patientCode}`);
+      const patientCode = result.data?.patientCode;
+      console.log("[QRScanner] 7. Patient FOUND! Code:", patientCode);
+      
+      const targetPath = `/patient/${patientCode}`;
+      console.log("[QRScanner] 8. Navigating to:", targetPath);
+
+      setLoading(false);
+      navigate(targetPath);
+      console.log("[QRScanner] 9. Navigation complete.");
     } catch (err) {
-      console.error("Failed to query patient by QR token:", err);
-      setError("An error occurred while fetching patient records.");
+      console.error("[QRScanner] EXCEPTION in handleQrToken:", err);
+      setError(`Error fetching patient records: ${err.message || String(err)}`);
       setLoading(false);
       restartScanner();
     }

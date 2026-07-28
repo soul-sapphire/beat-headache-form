@@ -27,7 +27,12 @@ export default function PatientProfilePage() {
   const isAdmin = userProfile?.role === "admin";
 
   const loadData = useCallback(async () => {
-    if (!id || !userData) return;
+    if (!id) return;
+    const activeUser = userData || userProfile;
+    const uid = activeUser?.uid || "unknown";
+    const name = activeUser?.displayName || "Doctor";
+    const email = activeUser?.email || "";
+
     setLoading(true);
     setError(null);
 
@@ -36,41 +41,39 @@ export default function PatientProfilePage() {
       const [patientResult, encountersResult] = await Promise.all([
         getPatientByCode(
           id,
-          userData.uid,
-          userData.displayName || "Doctor",
-          userData.email || "",
+          uid,
+          name,
+          email,
           isAdmin
         ),
         getEncountersForPatient(
           id,
-          userData.uid,
-          userData.displayName || "Doctor",
-          userData.email || "",
+          uid,
+          name,
+          email,
           isAdmin
         )
       ]);
 
       if (!patientResult) {
         setError("Patient record not found.");
-        setLoading(false);
         return;
       }
 
       if (patientResult.accessDenied) {
         setError(patientResult.message);
-        setLoading(false);
         return;
       }
 
       setPatient(patientResult.data);
-      setEncounters(encountersResult);
+      setEncounters(encountersResult || []);
     } catch (err) {
       console.error("Failed to load patient profile data:", err);
       setError("An error occurred while loading patient records.");
     } finally {
       setLoading(false);
     }
-  }, [id, userData, isAdmin]);
+  }, [id, userData, userProfile, isAdmin]);
 
   useEffect(() => {
     loadData();
