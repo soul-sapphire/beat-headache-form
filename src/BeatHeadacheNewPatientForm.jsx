@@ -1349,6 +1349,51 @@ const applyForwardReflections = (input) => {
         }
     });
 
+    // Sync new investigation arrays to legacy tests and fields for backward compatibility
+    if (next.examination?.investigations) {
+        const inv = next.examination.investigations;
+        
+        // Update legacy tests array
+        const legacyTests = [];
+        if (inv.blood?.some(b => b.test === "FBC")) legacyTests.push("FBC");
+        if (inv.blood?.some(b => b.test === "CRP")) legacyTests.push("CRP");
+        if (inv.blood?.some(b => b.test === "ESR")) legacyTests.push("ESR");
+        if (inv.imaging?.length > 0) legacyTests.push("Brain Imaging");
+        next.examination.tests = legacyTests;
+
+        // Update legacy individual fields
+        if (inv.fbc) {
+            inv.fbc.checked = inv.blood?.some(b => b.test === "FBC");
+            const fbcResult = inv.blood?.find(b => b.test === "FBC")?.result;
+            if (fbcResult) inv.fbc.result = fbcResult;
+        }
+        if (inv.crp) {
+            inv.crp.checked = inv.blood?.some(b => b.test === "CRP");
+            const crpResult = inv.blood?.find(b => b.test === "CRP")?.result;
+            if (crpResult) inv.crp.result = crpResult;
+        }
+        if (inv.esr) {
+            inv.esr.checked = inv.blood?.some(b => b.test === "ESR");
+            const esrResult = inv.blood?.find(b => b.test === "ESR")?.result;
+            if (esrResult) inv.esr.result = esrResult;
+        }
+        if (inv.brainImaging) {
+            inv.brainImaging.checked = inv.imaging?.length > 0;
+            inv.brainImaging.studies = inv.imaging?.map(i => i.type) || [];
+            if (inv.imaging?.length > 0) {
+                inv.brainImaging.result = inv.imaging[0].result;
+                inv.brainImaging.finding = inv.imaging[0].finding;
+            }
+        }
+        if (inv.ophthalmologyOld) {
+            inv.ophthalmologyOld.checked = inv.ophthalmology?.length > 0;
+            inv.ophthalmologyOld.findings = inv.ophthalmology?.map(o => o.finding) || [];
+            if (inv.ophthalmology?.length > 0) {
+                inv.ophthalmologyOld.remarks = inv.ophthalmology[0].remarks;
+            }
+        }
+    }
+
     return next;
 };
 
@@ -1454,9 +1499,26 @@ function createInitialState() {
         },
         examination: {
             tests: [],
+            investigations: {
+                // New structure
+                blood: [],
+                imaging: [],
+                ophthalmology: [],
+                // Backward compatibility: keep old fields
+                fbc: { checked: false, result: "Normal" },
+                crp: { checked: false, result: "Normal" },
+                esr: { checked: false, result: "Normal" },
+                brainImaging: { checked: false, studies: [], result: "Normal", finding: "" },
+                ophthalmologyOld: { checked: false, findings: [], remarks: "" }
+            }
         },
         fressh: {},
-        final: {},
+        final: {
+            diagnosis: "",
+            medications: [],
+            medicationPlan: "",
+            ccEmail: "",
+        },
         meta: {
             createdAt: new Date().toISOString(),
             updatedAt: "",
@@ -1511,9 +1573,90 @@ function ensureFormDefaults(input = {}) {
             ...fresh.examination,
             ...(input.examination || {}),
             tests: safeArray(input.examination?.tests),
+            investigations: (() => {
+                // Handle backward compatibility: convert old structure to new
+                const oldInv = input.examination?.investigations || {};
+                const oldTests = safeArray(input.examination?.tests);
+
+                // Convert blood tests
+                let blood = [];
+                if (oldInv.fbc?.checked || oldTests.includes("FBC")) {
+                    blood.push({ test: "FBC", result: oldInv.fbc?.result || "Normal" });
+                }
+                if (oldInv.crp?.checked || oldTests.includes("CRP")) {
+                    blood.push({ test: "CRP", result: oldInv.crp?.result || "Normal" });
+                }
+                if (oldInv.esr?.checked || oldTests.includes("ESR")) {
+                    blood.push({ test: "ESR", result: oldInv.esr?.result || "Normal" });
+                }
+                // If new blood array exists in input, use it
+                if (Array.isArray(oldInv.blood)) {
+                    blood = oldInv.blood;
+                }
+
+                // Convert brain imaging
+                let imaging = [];
+                if (oldInv.brainImaging?.checked || oldTests.includes("Brain Imaging")) {
+                    const oldStudies = oldInv.brainImaging?.studies || (oldInv.brainImaging?.imagingType ? [oldInv.brainImaging.imagingType] : []);
+                    oldStudies.forEach(study => {
+                        imaging.push({
+                            type: study,
+                            result: oldInv.brainImaging?.result || "Normal",
+                            finding: oldInv.brainImaging?.finding || ""
+                        });
+                    });
+                }
+                // If new imaging array exists in input, use it
+                if (Array.isArray(oldInv.imaging)) {
+                    imaging = oldInv.imaging;
+                }
+
+                // Convert ophthalmology
+                let ophthalmology = [];
+                const oldOph = oldInv.ophthalmology || oldInv.ophthalmologyOld || {};
+                const oldOphFindings = oldOph.findings || (oldOph.result ? [oldOph.result] : []);
+                oldOphFindings.forEach(finding => {
+                    ophthalmology.push({
+                        finding: finding,
+                        remarks: oldOph.remarks || ""
+                    });
+                });
+                // If new ophthalmology array exists in input, use it
+                if (Array.isArray(oldInv.ophthalmology)) {
+                    ophthalmology = oldInv.ophthalmology;
+                }
+
+                return {
+                    blood,
+                    imaging,
+                    ophthalmology,
+                    // Keep old fields for backward compatibility
+                    fbc: { checked: oldTests.includes("FBC"), result: "Normal", ...(oldInv.fbc || {}) },
+                    crp: { checked: oldTests.includes("CRP"), result: "Normal", ...(oldInv.crp || {}) },
+                    esr: { checked: oldTests.includes("ESR"), result: "Normal", ...(oldInv.esr || {}) },
+                    brainImaging: { 
+                        checked: oldTests.includes("Brain Imaging"), 
+                        studies: Array.isArray(oldInv.brainImaging?.studies) ? oldInv.brainImaging.studies : (oldInv.brainImaging?.imagingType ? [oldInv.brainImaging.imagingType] : []), 
+                        result: "Normal", 
+                        finding: "", 
+                        ...(oldInv.brainImaging || {}) 
+                    },
+                    ophthalmologyOld: { 
+                        checked: (Array.isArray(oldOphFindings) && oldOphFindings.length > 0) || !!oldOph?.checked, 
+                        findings: oldOphFindings, 
+                        remarks: oldOph?.remarks || "", 
+                        ...(oldOph || {}) 
+                    },
+                    ...oldInv
+                };
+            })()
         },
         fressh: { ...fresh.fressh, ...(input.fressh || {}) },
-        final: { ...fresh.final, ...(input.final || {}) },
+        final: { 
+            ...fresh.final, 
+            ...(input.final || {}),
+            medications: safeArray(input.final?.medications)
+        },
 
         meta: {
             ...fresh.meta,
@@ -1653,6 +1796,114 @@ function OptionGroup({ options, value, onChange, type = "radio", columns = "md:g
         </div>
     );
 }
+
+function Select({ value, onChange, options, placeholder = "" }) {
+    return (
+        <select
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 dark:text-white px-4 py-3 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:focus:ring-sky-900"
+        >
+            {placeholder && <option value="" disabled>{placeholder}</option>}
+            {options.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+            ))}
+        </select>
+    );
+}
+
+function SearchableMultiSelect({ options, value, onChange, placeholder = "Select medications..." }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState("");
+    const selected = Array.isArray(value) ? value : [];
+
+    const filteredOptions = options.filter(opt =>
+        opt.toLowerCase().includes(search.toLowerCase())
+    );
+
+    const toggleOption = (option) => {
+        const next = selected.includes(option)
+            ? selected.filter(item => item !== option)
+            : [...selected, option];
+        onChange(next);
+    };
+
+    return (
+        <div className="relative">
+            <div
+                onClick={() => setIsOpen(!isOpen)}
+                className="min-h-[48px] w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 dark:text-white px-4 py-2 text-sm outline-none transition focus-within:border-sky-400 focus-within:ring-4 focus-within:ring-sky-100 dark:focus-within:ring-sky-900 flex items-center justify-between cursor-pointer"
+            >
+                <div className="flex flex-wrap gap-1.5">
+                    {selected.length === 0 ? (
+                        <span className="text-slate-400">{placeholder}</span>
+                    ) : (
+                        selected.map(item => (
+                            <span
+                                key={item}
+                                className="inline-flex items-center gap-1 bg-sky-50 dark:bg-sky-900/40 text-sky-800 dark:text-sky-200 px-2 py-0.5 rounded-lg text-xs font-semibold border border-sky-100 dark:border-sky-800"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleOption(item);
+                                }}
+                            >
+                                {item}
+                                <span className="hover:text-sky-900 dark:hover:text-white font-bold ml-1">×</span>
+                            </span>
+                        ))
+                    )}
+                </div>
+                <span className="text-slate-400 ml-2">▼</span>
+            </div>
+
+            {isOpen && (
+                <>
+                    <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => setIsOpen(false)}
+                    />
+                    <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-20 max-h-60 overflow-y-auto p-2 space-y-2">
+                        <input
+                            type="text"
+                            placeholder="Search..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full rounded-lg border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 dark:text-white px-3 py-2 text-xs outline-none focus:border-sky-400"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                        <div className="space-y-1">
+                            {filteredOptions.length === 0 ? (
+                                <div className="text-xs text-slate-400 text-center py-2">No results found</div>
+                            ) : (
+                                filteredOptions.map(option => {
+                                    const isChecked = selected.includes(option);
+                                    return (
+                                        <div
+                                            key={option}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleOption(option);
+                                            }}
+                                            className={`flex items-center justify-between px-3 py-2 text-xs rounded-lg cursor-pointer transition-colors ${
+                                                isChecked
+                                                    ? "bg-sky-50 dark:bg-sky-900/20 text-sky-800 dark:text-sky-200 font-semibold"
+                                                    : "hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200"
+                                            }`}
+                                        >
+                                            <span>{option}</span>
+                                            {isChecked && <span className="text-sky-600 dark:text-sky-400 font-bold">✓</span>}
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
 
 function SeverityFaceSelector({ value, onChange }) {
     const options = [
@@ -1796,6 +2047,164 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
         };
         handleScrollTop();
     }, [page]);
+
+    // --- New Handlers for Investigations ---
+
+    // Blood Tests Handlers
+    const toggleBloodTest = (testName) => {
+        setForm((prevRaw) => {
+            const prev = ensureFormDefaults(prevRaw);
+            const blood = [...(prev.examination?.investigations?.blood || [])];
+            const idx = blood.findIndex(b => b.test === testName);
+            if (idx >= 0) {
+                blood.splice(idx, 1);
+            } else {
+                blood.push({ test: testName, result: "Normal" });
+            }
+            return applyForwardReflections({
+                ...prev,
+                examination: {
+                    ...prev.examination,
+                    investigations: {
+                        ...prev.examination?.investigations,
+                        blood
+                    }
+                }
+            });
+        });
+    };
+
+    const updateBloodTestResult = (testName, result) => {
+        setForm((prevRaw) => {
+            const prev = ensureFormDefaults(prevRaw);
+            const blood = [...(prev.examination?.investigations?.blood || [])];
+            const idx = blood.findIndex(b => b.test === testName);
+            if (idx >= 0) {
+                blood[idx] = { ...blood[idx], result };
+            }
+            return applyForwardReflections({
+                ...prev,
+                examination: {
+                    ...prev.examination,
+                    investigations: {
+                        ...prev.examination?.investigations,
+                        blood
+                    }
+                }
+            });
+        });
+    };
+
+    // Brain Imaging Handlers
+    const toggleImagingStudy = (studyType) => {
+        setForm((prevRaw) => {
+            const prev = ensureFormDefaults(prevRaw);
+            const imaging = [...(prev.examination?.investigations?.imaging || [])];
+            const idx = imaging.findIndex(i => i.type === studyType);
+            if (idx >= 0) {
+                imaging.splice(idx, 1);
+            } else {
+                imaging.push({ type: studyType, result: "Normal", finding: "" });
+            }
+            return applyForwardReflections({
+                ...prev,
+                examination: {
+                    ...prev.examination,
+                    investigations: {
+                        ...prev.examination?.investigations,
+                        imaging
+                    }
+                }
+            });
+        });
+    };
+
+    const updateImagingResult = (studyType, result) => {
+        setForm((prevRaw) => {
+            const prev = ensureFormDefaults(prevRaw);
+            const imaging = [...(prev.examination?.investigations?.imaging || [])];
+            const idx = imaging.findIndex(i => i.type === studyType);
+            if (idx >= 0) {
+                imaging[idx] = { ...imaging[idx], result };
+            }
+            return applyForwardReflections({
+                ...prev,
+                examination: {
+                    ...prev.examination,
+                    investigations: {
+                        ...prev.examination?.investigations,
+                        imaging
+                    }
+                }
+            });
+        });
+    };
+
+    const updateImagingFinding = (studyType, finding) => {
+        setForm((prevRaw) => {
+            const prev = ensureFormDefaults(prevRaw);
+            const imaging = [...(prev.examination?.investigations?.imaging || [])];
+            const idx = imaging.findIndex(i => i.type === studyType);
+            if (idx >= 0) {
+                imaging[idx] = { ...imaging[idx], finding };
+            }
+            return applyForwardReflections({
+                ...prev,
+                examination: {
+                    ...prev.examination,
+                    investigations: {
+                        ...prev.examination?.investigations,
+                        imaging
+                    }
+                }
+            });
+        });
+    };
+
+    // Ophthalmology Handlers
+    const toggleOphthalmologyFinding = (findingName) => {
+        setForm((prevRaw) => {
+            const prev = ensureFormDefaults(prevRaw);
+            const ophthalmology = [...(prev.examination?.investigations?.ophthalmology || [])];
+            const idx = ophthalmology.findIndex(o => o.finding === findingName);
+            if (idx >= 0) {
+                ophthalmology.splice(idx, 1);
+            } else {
+                ophthalmology.push({ finding: findingName, remarks: "" });
+            }
+            return applyForwardReflections({
+                ...prev,
+                examination: {
+                    ...prev.examination,
+                    investigations: {
+                        ...prev.examination?.investigations,
+                        ophthalmology
+                    }
+                }
+            });
+        });
+    };
+
+    const updateOphthalmologyRemarks = (findingName, remarks) => {
+        setForm((prevRaw) => {
+            const prev = ensureFormDefaults(prevRaw);
+            const ophthalmology = [...(prev.examination?.investigations?.ophthalmology || [])];
+            const idx = ophthalmology.findIndex(o => o.finding === findingName);
+            if (idx >= 0) {
+                ophthalmology[idx] = { ...ophthalmology[idx], remarks };
+            }
+            return applyForwardReflections({
+                ...prev,
+                examination: {
+                    ...prev.examination,
+                    investigations: {
+                        ...prev.examination?.investigations,
+                        ophthalmology
+                    }
+                }
+            });
+        });
+    };
 
     const update = (section, key, value) => {
         setForm((prevRaw) => {
@@ -2789,7 +3198,148 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                         )}
                     </div>
 
-                    <Field label="Tests"><OptionGroup type="checkbox" options={tests} value={form.examination.tests} onChange={(v) => update("examination", "tests", v)} /></Field>
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5 space-y-5">
+                        <span className="text-sm font-bold text-slate-800 block border-b border-slate-200 pb-2">Investigations</span>
+                        
+                        {/* Blood Tests */}
+                        <div className="space-y-3">
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Blood Tests</span>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {["FBC", "CRP", "ESR"].map((testName) => {
+                                    const bloodTest = (form.examination.investigations?.blood || []).find(b => b.test === testName);
+                                    const isChecked = !!bloodTest;
+                                    return (
+                                        <div key={testName} className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col justify-between space-y-2">
+                                            <label className="flex items-center gap-2.5 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={() => toggleBloodTest(testName)}
+                                                    className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                                                />
+                                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{testName}</span>
+                                            </label>
+                                            {isChecked && (
+                                                <div className="space-y-1">
+                                                    <span className="text-xs text-slate-500 font-medium">Result</span>
+                                                    <Select
+                                                        options={["Normal", "Abnormal", "Pending"]}
+                                                        value={bloodTest.result}
+                                                        onChange={(v) => updateBloodTestResult(testName, v)}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        
+                        {/* Brain Imaging */}
+                        <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-3">
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Brain Imaging</span>
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider block">Select Studies (Multiple Allowed)</span>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                        {["CT Brain", "MRI Brain", "CT Sinus", "MRA Brain", "MRV Brain", "Other"].map((studyType) => {
+                                            const isSelected = (form.examination.investigations?.imaging || []).some(i => i.type === studyType);
+                                            return (
+                                                <label key={studyType} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                                                    isSelected 
+                                                        ? "border-sky-300 bg-sky-50/50 dark:bg-sky-900/20 text-sky-800 dark:text-sky-200" 
+                                                        : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                                                }`}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => toggleImagingStudy(studyType)}
+                                                        className="h-3.5 w-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                                                    />
+                                                    <span>{studyType}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                
+                                {/* For each selected study, show result and finding */}
+                                {(form.examination.investigations?.imaging || []).map((study) => (
+                                    <div key={study.type} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm font-bold text-slate-800">{study.type}</span>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <span className="text-xs text-slate-500 font-medium">Result</span>
+                                                <Select
+                                                    options={["Normal", "Abnormal", "Pending"]}
+                                                    value={study.result}
+                                                    onChange={(v) => updateImagingResult(study.type, v)}
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <span className="text-xs text-slate-500 font-medium">Finding</span>
+                                                <TextInput
+                                                    placeholder="Enter findings"
+                                                    value={study.finding}
+                                                    onChange={(v) => updateImagingFinding(study.type, v)}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Ophthalmology */}
+                        <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-3">
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Ophthalmology</span>
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider block">Findings (Multiple Allowed)</span>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                        {["Normal", "Papilloedema", "Visual Defect", "Optic Disc Pallor", "Other"].map((findingName) => {
+                                            const isSelected = (form.examination.investigations?.ophthalmology || []).some(o => o.finding === findingName);
+                                            return (
+                                                <label key={findingName} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                                                    isSelected 
+                                                        ? "border-sky-300 bg-sky-50/50 dark:bg-sky-900/20 text-sky-800 dark:text-sky-200" 
+                                                        : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                                                }`}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => toggleOphthalmologyFinding(findingName)}
+                                                        className="h-3.5 w-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                                                    />
+                                                    <span>{findingName}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                
+                                {/* For each selected finding, show remarks */}
+                                {(form.examination.investigations?.ophthalmology || []).map((item) => (
+                                    <div key={item.finding} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm font-bold text-slate-800">{item.finding}</span>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <span className="text-xs text-slate-500 font-medium">Remarks</span>
+                                            <TextInput
+                                                placeholder="Enter remarks"
+                                                value={item.remarks}
+                                                onChange={(v) => updateOphthalmologyRemarks(item.finding, v)}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
                 </Card>
             </div>
         );
@@ -2824,6 +3374,25 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                         <div className="text-sm font-semibold text-sky-700">FRESSH Total</div>
                         <div className="text-4xl font-black text-sky-900">{fresshTotal}</div>
                     </div>
+                </Card>
+
+                <Card title="Headache Medications">
+                    <Field label="Select Medications">
+                        <SearchableMultiSelect
+                            options={[
+                                "Paracetamol",
+                                "Ibuprofen",
+                                "Flunarizine",
+                                "Pizotifen",
+                                "Propranolol",
+                                "Topiramate",
+                                "Desloratadine",
+                                "Fexofenadine"
+                            ]}
+                            value={form.final.medications}
+                            onChange={(v) => update("final", "medications", v)}
+                        />
+                    </Field>
                 </Card>
 
                 <Card title="Final Plan">

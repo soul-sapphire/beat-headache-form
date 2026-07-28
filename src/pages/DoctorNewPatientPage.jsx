@@ -12,6 +12,7 @@ export default function DoctorNewPatientPage() {
   const [birthYear, setBirthYear] = useState("");
   const [loading, setLoading] = useState(false);
   const [generatedPatientCode, setGeneratedPatientCode] = useState(null);
+  const [generatedQrToken, setGeneratedQrToken] = useState(null);
   const [copied, setCopied] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -20,7 +21,7 @@ export default function DoctorNewPatientPage() {
     
     setLoading(true);
     try {
-      const code = await createPatientShell(
+      const result = await createPatientShell(
         firstName.trim(),
         lastName.trim(),
         birthYear.trim(),
@@ -28,7 +29,10 @@ export default function DoctorNewPatientPage() {
         userData.displayName || "Doctor",
         userData.email || ""
       );
+      const code = typeof result === "string" ? result : result?.patientCode;
+      const qr = typeof result === "object" && result?.qrToken ? result.qrToken : code;
       setGeneratedPatientCode(code);
+      setGeneratedQrToken(qr);
     } catch (error) {
       console.error("Error creating patient shell:", error);
       alert("Failed to create patient record. Check console for details.");

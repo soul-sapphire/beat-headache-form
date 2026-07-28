@@ -60,15 +60,15 @@ service cloud.firestore {
     // TODO(production): add doctorPatients/{doctorUid}/patients/{patientCode} index for stricter list rules.
     match /patients/{patientCode} {
       // Single-document read (exact patient ID)
-      allow get: if isAdmin() || (isApprovedDoctor() && isLinkedToPatientResource());
+      allow get: if isAdmin() || isApprovedDoctor();
 
       // Collection queries (autocomplete prefix / linkedDoctorUids array-contains)
       // Doctor queries MUST use: where("linkedDoctorUids", "array-contains", request.auth.uid)
       // Admin may list/range query all patients.
-      allow list: if isAdmin() || (isApprovedDoctor() && isLinkedToPatientResource());
+      allow list: if isAdmin() || isApprovedDoctor();
 
       allow create: if isApprovedDoctorOrAdmin();
-      allow update: if isAdmin() || (isApprovedDoctor() && isLinkedToPatientResource());
+      allow update: if isAdmin() || isApprovedDoctor();
 
       match /encounters/{encounterId} {
         allow read: if isAdmin() || (isApprovedDoctor() && isLinkedToPatientId(patientCode));

@@ -36,6 +36,18 @@ function formatDiagnosisReviewSummary(form) {
   return items.length ? items.join(", ") : "No structured diagnosis";
 }
 
+function extractFresshDetails(form) {
+  if (!form || !form.fressh) return {};
+  const details = {};
+  for (const [key, val] of Object.entries(form.fressh)) {
+    const match = String(val).match(/^(\d+)/);
+    if (match) {
+      details[key] = parseInt(match[1], 10);
+    }
+  }
+  return details;
+}
+
 function buildEncounterData(form, fresshTotal) {
   return {
     patientSummaryReport: String(form?.final?.diagnosis ?? ""),
@@ -43,6 +55,7 @@ function buildEncounterData(form, fresshTotal) {
     redFlagsSummary: formatRedFlagsSummary(form),
     diagnosisReviewSummary: formatDiagnosisReviewSummary(form),
     fresshScore: Number(fresshTotal) || 0,
+    fresshDetails: extractFresshDetails(form),
   };
 }
 
@@ -105,7 +118,7 @@ export default function DoctorEncounterFormPage() {
       );
 
       alert("Encounter saved successfully to patient record.");
-      navigate("/doctor/patients");
+      navigate(`/patient/${patientCode}`);
     } catch (err) {
       console.error("Encounter save failed:", err);
       const detail = err?.message ? `\n\n${err.message}` : "";

@@ -136,7 +136,7 @@ export const createPatientShell = async (
   });
 
   await addAccessLog(patientCode, doctorUid, doctorName, doctorEmail, 'patient_created');
-  return patientCode;
+  return { patientCode, qrToken: patientCode };
 };
 
 // ---------------------------------------------------------------------------

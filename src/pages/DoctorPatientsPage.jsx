@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
+import { QRCodeCanvas } from "qrcode.react";
 import { useAuth } from "../context/AuthContext";
 import {
   getPatientByCode,
@@ -341,12 +342,19 @@ export default function DoctorPatientsPage() {
                 </div>
               </div>
 
-              <Link
-                to={`/doctor/encounter/new/${selectedPatient.patientCode}`}
-                className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-sm transition-colors text-center"
-              >
-                + New Encounter
-              </Link>
+              <div className="flex flex-col sm:flex-row items-center gap-6 w-full md:w-auto mt-4 md:mt-0">
+                {selectedPatient.qrToken && (
+                  <div className="bg-gray-50 p-2 rounded-xl border border-gray-100 flex items-center justify-center shrink-0">
+                    <QRCodeCanvas value={selectedPatient.qrToken} size={90} />
+                  </div>
+                )}
+                <Link
+                  to={`/doctor/encounter/new/${selectedPatient.patientCode}`}
+                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-sm transition-colors text-center shrink-0"
+                >
+                  + New Encounter
+                </Link>
+              </div>
             </div>
 
             <h3 className="text-lg font-bold text-gray-800 px-2">
