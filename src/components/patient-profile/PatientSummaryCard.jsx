@@ -1,5 +1,7 @@
 import React from 'react';
-import { Hash, Calendar, User as UserIcon, Activity } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { QRCodeCanvas } from 'qrcode.react';
+import { Hash, Calendar, User as UserIcon, Activity, Stethoscope, PlusCircle } from 'lucide-react';
 
 function formatDisplayDate(val) {
   if (!val) return null;
@@ -14,46 +16,73 @@ function formatDisplayDate(val) {
 export default function PatientSummaryCard({ patient, latestEncounter }) {
   if (!patient) return null;
 
+  const ageDisplay = patient.age
+    ? `${patient.age} yrs`
+    : patient.birthYear
+    ? `${new Date().getFullYear() - parseInt(patient.birthYear, 10)} yrs`
+    : 'N/A';
+
+  const latestDiag = latestEncounter?.diagnosisReviewSummary || patient.latestDiagnosis || 'Initial Assessment Pending';
+  const fresshScore = latestEncounter?.fresshScore ?? patient.latestFresshScore ?? 'N/A';
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-      <div className="flex items-start gap-4">
-        <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center shrink-0">
-          <Hash className="w-8 h-8" />
+      {/* Patient Info & Identification */}
+      <div className="flex items-start gap-4 flex-1">
+        <div className="p-2 bg-white rounded-xl border border-gray-200 shadow-xs shrink-0">
+          <QRCodeCanvas value={patient.qrToken || 'BEAT-HEADACHE'} size={68} />
         </div>
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 font-mono">
-            {patient.patientCode}
-          </h2>
-          <h3 className="text-lg font-semibold text-gray-700">
-            {patient.firstName} {patient.lastName}
-          </h3>
-          <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-500">
-            {patient.birthYear && (
-              <span className="flex items-center gap-1">
-                <Calendar className="w-4 h-4" /> {patient.birthYear}
-              </span>
-            )}
-            <span className="flex items-center gap-1">
-              <UserIcon className="w-4 h-4" /> {patient.gender || 'Not specified'}
+
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+              ID: {patient.patientCode}
             </span>
             {formatDisplayDate(patient.lastVisitAt) && (
-              <span className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded-full text-xs font-medium">
-                Last visit: {formatDisplayDate(patient.lastVisitAt)}
+              <span className="text-xs font-medium text-gray-400">
+                Last Visit: {formatDisplayDate(patient.lastVisitAt)}
               </span>
             )}
+          </div>
+
+          <h2 className="text-2xl font-bold text-gray-900">
+            {patient.firstName || 'Patient'} {patient.lastName || ''}
+          </h2>
+
+          <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-gray-500 pt-1">
+            <span className="flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-gray-400" /> Age: {ageDisplay}
+            </span>
+            <span className="flex items-center gap-1">
+              <UserIcon className="w-3.5 h-3.5 text-gray-400" /> Gender: {patient.gender || 'Not specified'}
+            </span>
+            <span className="flex items-center gap-1 text-gray-600 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+              <Stethoscope className="w-3.5 h-3.5 text-blue-500" />
+              <strong>Latest Diagnosis:</strong> {latestDiag}
+            </span>
           </div>
         </div>
       </div>
-      
-      {latestEncounter && (
-        <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 flex flex-col items-center min-w-[140px]">
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Latest FRESSH</span>
-          <div className="flex items-center justify-center gap-2 text-blue-600">
-            <Activity className="w-6 h-6" />
-            <span className="text-3xl font-black">{latestEncounter.fresshScore || 0}</span>
+
+      {/* Metrics & Action Button */}
+      <div className="flex items-center gap-4 shrink-0 w-full md:w-auto justify-between md:justify-end">
+        <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-3 flex flex-col items-center min-w-[110px]">
+          <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-0.5">Latest FRESSH</span>
+          <div className="flex items-center justify-center gap-1 text-blue-700">
+            <Activity className="w-4 h-4" />
+            <span className="text-2xl font-black">{fresshScore}</span>
+            {typeof fresshScore === 'number' && <span className="text-xs font-bold text-blue-400">/60</span>}
           </div>
         </div>
-      )}
+
+        <Link
+          to={`/doctor/followup/${patient.patientCode}`}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-2 hover:scale-[1.02] shrink-0"
+        >
+          <PlusCircle className="w-4 h-4" />
+          + New Follow-up
+        </Link>
+      </div>
     </div>
   );
 }

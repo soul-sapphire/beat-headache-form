@@ -166,7 +166,7 @@ export function generatePatientReportPdf(form, fresshTotal) {
         const dateStr = `Date: ${new Date().toLocaleDateString()}`;
         doc.text(dateStr, P_WIDTH - M_RIGHT - 13, 10.5, { align: "right" });
 
-        const qrCodeData = p.registrationCode || "BEAT-HEADACHE";
+        const qrCodeData = p.qrToken || form.qrToken || "BEAT-HEADACHE";
         renderQrCode(doc, qrCodeData, P_WIDTH - M_RIGHT - 10, 2.5, 9.5);
 
         doc.setDrawColor(...C_BORDER);

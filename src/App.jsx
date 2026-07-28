@@ -23,7 +23,10 @@ import AdminContactMessagesPage from "./pages/AdminContactMessagesPage";
 import AdminFeedbackPage from "./pages/AdminFeedbackPage";
 import DoctorNewPatientPage from "./pages/DoctorNewPatientPage";
 import DoctorEncounterFormPage from "./pages/DoctorEncounterFormPage";
+import DoctorFollowUpPage from "./pages/DoctorFollowUpPage";
 import DoctorPatientsPage from "./pages/DoctorPatientsPage";
+import PatientProfilePage from "./pages/PatientProfilePage";
+import QRScannerPage from "./pages/QRScannerPage";
 
 function App() {
   return (
@@ -103,10 +106,42 @@ function App() {
               }
             />
             <Route
+              path="/doctor/followup/:patientCode"
+              element={
+                <ProtectedRoute allowedRoles={["doctor", "admin"]}>
+                  <DoctorFollowUpPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/doctor/patients"
               element={
                 <ProtectedRoute allowedRoles={["doctor", "admin"]}>
                   <DoctorPatientsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/doctor/scan"
+              element={
+                <ProtectedRoute allowedRoles={["doctor", "admin"]}>
+                  <QRScannerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/patient/:id"
+              element={
+                <ProtectedRoute allowedRoles={["doctor", "admin"]}>
+                  <PatientProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/doctor/patient/:id"
+              element={
+                <ProtectedRoute allowedRoles={["doctor", "admin"]}>
+                  <PatientProfilePage />
                 </ProtectedRoute>
               }
             />

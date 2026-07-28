@@ -83,6 +83,21 @@ export const addAccessLog = async (patientCode, doctorUid, doctorName, doctorEma
 // Patient shell creation (with Firestore transaction for safe counter)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Secure QR Token generation
+// ---------------------------------------------------------------------------
+
+export function generateQrToken() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `pt_${hex}`;
+}
+
+// ---------------------------------------------------------------------------
+// Patient shell creation (with Firestore transaction for safe counter)
+// ---------------------------------------------------------------------------
+
 export const createPatientShell = async (
   firstName, lastName, birthYear,
   doctorUid, doctorName, doctorEmail
@@ -91,6 +106,7 @@ export const createPatientShell = async (
 
   let patientCode = '';
   let sequenceNumber = 0;
+  let qrToken = generateQrToken();
 
   await runTransaction(db, async (transaction) => {
     const counterDoc = await transaction.get(counterRef);
@@ -120,6 +136,7 @@ export const createPatientShell = async (
     const patientRef = doc(db, 'patients', patientCode);
     transaction.set(patientRef, {
       patientCode,
+      qrToken,
       firstName,
       lastName,
       initialFirstPart: fn,
@@ -136,7 +153,7 @@ export const createPatientShell = async (
   });
 
   await addAccessLog(patientCode, doctorUid, doctorName, doctorEmail, 'patient_created');
-  return { patientCode, qrToken: patientCode };
+  return { patientCode, qrToken };
 };
 
 // ---------------------------------------------------------------------------
@@ -166,8 +183,69 @@ export const getPatientByCode = async (
     };
   }
 
+  // Auto-backfill qrToken if missing on existing patient record
+  let activeQrToken = patientData.qrToken;
+  if (!activeQrToken) {
+    activeQrToken = generateQrToken();
+    try {
+      await setDoc(patientRef, { qrToken: activeQrToken, updatedAt: serverTimestamp() }, { merge: true });
+    } catch (e) {
+      // Non-critical backfill error — proceed with activeQrToken
+    }
+  }
+
   await addAccessLog(patientCode, doctorUid, doctorName, doctorEmail, 'patient_viewed');
-  return { exists: true, data: { ...patientData, patientCode: patientData.patientCode || patientCode } };
+  return {
+    exists: true,
+    data: {
+      ...patientData,
+      patientCode: patientData.patientCode || patientCode,
+      qrToken: activeQrToken,
+    },
+  };
+};
+
+// ---------------------------------------------------------------------------
+// Fetch patient by secure QR token with access control
+// ---------------------------------------------------------------------------
+
+export const getPatientByQrToken = async (
+  qrToken, doctorUid, doctorName, doctorEmail, isAdmin = false
+) => {
+  if (!qrToken) return null;
+
+  const patientsRef = collection(db, 'patients');
+  const q = query(patientsRef, where('qrToken', '==', qrToken), limit(1));
+  const snap = await getDocs(q);
+
+  if (snap.empty) {
+    return null; // Not found
+  }
+
+  const docSnap = snap.docs[0];
+  const patientData = docSnap.data();
+  const patientCode = patientData.patientCode || docSnap.id;
+  const isLinked = (patientData.linkedDoctorUids || []).includes(doctorUid);
+
+  if (!isLinked && !isAdmin) {
+    return {
+      exists: true,
+      accessDenied: true,
+      message:
+        'This patient exists, but your account is not linked to this patient record. ' +
+        'Create a new encounter or request admin access according to clinic policy.',
+    };
+  }
+
+  await addAccessLog(patientCode, doctorUid, doctorName, doctorEmail, 'qr_scanned');
+  return {
+    exists: true,
+    data: {
+      ...patientData,
+      patientCode,
+      qrToken: patientData.qrToken || qrToken,
+    },
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -372,12 +450,17 @@ export const saveEncounterReport = async (
     doctorUid,
     doctorName,
     doctorEmail,
-    visitDate: new Date().toISOString().slice(0, 10),
+    visitDate: encounterData.visitDate || new Date().toISOString().slice(0, 10),
+    visitType: encounterData.visitType || 'Follow-up',
     patientSummaryReport: encounterData.patientSummaryReport || '',
     doctorClinicalReport: encounterData.doctorClinicalReport || '',
     redFlagsSummary: encounterData.redFlagsSummary || 'None',
     diagnosisReviewSummary: encounterData.diagnosisReviewSummary || '',
     fresshScore: encounterData.fresshScore ?? 0,
+    fresshDetails: encounterData.fresshDetails || {},
+    symptomsSummary: encounterData.symptomsSummary || '',
+    managementPlan: encounterData.managementPlan || '',
+    doctorNotes: encounterData.doctorNotes || '',
     reportGeneratedAt: serverTimestamp(),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -385,19 +468,25 @@ export const saveEncounterReport = async (
 
   const newDoc = await addDoc(encounterRef, encounterPayload);
 
-  // 2. Ensure doctor is linked to patient
+  // 2. Ensure doctor is linked to patient & update latest stats
   const patientRef = doc(db, 'patients', patientCode);
   const patientDoc = await getDoc(patientRef);
   if (patientDoc.exists()) {
     const pData = patientDoc.data();
     const linked = pData.linkedDoctorUids || [];
+    const updatePayload = {
+      updatedAt: serverTimestamp(),
+      lastVisitAt: serverTimestamp(),
+      latestDiagnosis: encounterData.diagnosisReviewSummary || pData.latestDiagnosis || '',
+      latestFresshScore: encounterData.fresshScore ?? pData.latestFresshScore ?? 0,
+    };
+
     if (!linked.includes(doctorUid)) {
-      await setDoc(
-        patientRef,
-        { linkedDoctorUids: [...linked, doctorUid], updatedAt: serverTimestamp() },
-        { merge: true }
-      );
+      updatePayload.linkedDoctorUids = [...linked, doctorUid];
     }
+
+    await setDoc(patientRef, updatePayload, { merge: true });
+
     // 3. Save research row (uses patient birthYear)
     await saveResearchRow(
       patientCode,

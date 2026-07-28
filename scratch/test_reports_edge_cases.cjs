@@ -20,7 +20,7 @@ jsPDF.prototype.save = function(filename) {
 };
 
 const sampleMinimalForm = {
-    patient: { registrationCode: "BH-101", age: 10, gender: "Female" }
+    patient: { registrationCode: "BH-101", qrToken: "pt_a1b2c3d4e5f67890a1b2c3d4e5f67890", age: 10, gender: "Female" }
 };
 
 const sampleExtremeForm = {
@@ -30,7 +30,7 @@ const sampleExtremeForm = {
         gender: "Male",
         ethnicity: "Sinhalese / Extremely Long Ethnicity Field Entry Test String That Should Truncate Gracefully",
         dob: "2014-05-12",
-        qrToken: "https://beatheadache.org/verify/encounter/99999999999999999999?token=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        qrToken: "pt_99999999999999999999abcdef0123456789"
     },
     birth: { gestation: 38, delivery: "Normal Vaginal Delivery", consanguinity: "No", parity: "P[3] C[3]" },
     perinatal: { complications: "Extremely long neonatal history notes describing mild hyperbilirubinemia, phototherapy for 3 days, NICU admission, transient tachypnea of the newborn, and prolonged jaundice monitoring.", pbuStay: "Y", pbuDays: 5, other: "Detailed developmental assessment normal" },
