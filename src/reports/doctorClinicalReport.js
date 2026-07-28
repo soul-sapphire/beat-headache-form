@@ -79,7 +79,7 @@ export function generateDoctorReportPdf(form, fresshTotal) {
         doc.text(`Generated: ${new Date().toLocaleDateString()}`, M + 14, M + 9.5);
 
         // QR Code
-        const qrData = p.qrToken || p.registrationCode || "BEAT-HEADACHE";
+        const qrData = p.qrToken || form.qrToken || "BEAT-HEADACHE";
         renderQrCode(doc, qrData, PW - M - 14, M, 14);
 
         cy = M + 16;
