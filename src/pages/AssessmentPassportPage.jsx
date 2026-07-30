@@ -212,44 +212,132 @@ export default function AssessmentPassportPage() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
             <div className="space-y-1">
               <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">
-                Beat Headache Digital Passport (V2)
+                🧠 Digital Headache Passport
               </span>
               <h1 className="text-2xl sm:text-3xl font-black">
-                ID: {assessmentDoc.assessmentId}
+                BH-HA-{assessmentDoc.assessmentId?.replace("BH-HA-", "")}
               </h1>
               <p className="text-xs text-slate-300">
-                Owner: <strong>{assessmentDoc.firstName || "Anonymous"}</strong> | Recorded: {history.length} {history.length === 1 ? "Assessment" : "Reassessments"}
+                Owner: <strong>{assessmentDoc.firstName || "Anonymous"}</strong> | History: {history.length} {history.length === 1 ? "Assessment" : "Reassessments"}
               </p>
             </div>
 
-            <div className="bg-white p-2.5 rounded-2xl shrink-0 shadow-md">
-              <QRCodeCanvas
-                value={`${window.location.origin}/assessment/${assessmentDoc.assessmentId}`}
-                size={80}
-              />
+            <div className="flex items-center gap-3">
+              <span className={`px-3.5 py-1.5 rounded-full text-xs font-black border ${
+                daysAgo >= 14 ? "bg-amber-500/20 text-amber-300 border-amber-400/40" : "bg-emerald-500/20 text-emerald-300 border-emerald-400/40"
+              }`}>
+                {daysAgo >= 14 ? "🟠 Time for your next assessment" : "🟢 Assessment up to date"}
+              </span>
             </div>
           </div>
 
-          {/* PART 5 — Welcome Back Experience & PART 4 — Reassessment Countdown */}
-          <div className="bg-slate-800/80 border border-slate-700 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs">
+          {/* Welcome Back & Days Ago */}
+          <div className="bg-slate-800/80 border border-slate-700 rounded-2xl p-4 flex justify-between items-center text-xs">
             <div className="flex items-center gap-3">
               <span className="text-2xl">👋</span>
-              <div className="space-y-0.5">
+              <div>
                 <p className="font-bold text-slate-100">Welcome Back!</p>
                 <p className="text-slate-300">
-                  Last assessment was {daysAgo === 0 ? "today" : `${daysAgo} days ago`}. Next recommended check:{" "}
-                  <strong className={isOverdue ? "text-rose-400 font-black" : "text-emerald-400"}>
-                    {nextDueDate.toLocaleDateString()} ({isOverdue ? "OVERDUE" : `${daysRemaining} days remaining`})
-                  </strong>
+                  Last assessment was <strong>{daysAgo === 0 ? "today" : `${daysAgo} days ago`}</strong>.
                 </p>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* 14-DAY REASSESSMENT REMINDER ALERT BANNER */}
+        {daysAgo >= 14 && (
+          <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white rounded-3xl p-6 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-in zoom-in-95 duration-300">
+            <div className="space-y-1 text-center sm:text-left">
+              <h3 className="font-black text-base flex items-center justify-center sm:justify-start gap-2">
+                🔔 Time for your next headache assessment!
+              </h3>
+              <p className="text-xs text-amber-100 font-medium">
+                It's been {daysAgo} days since your last check-in. Keep tracking your progress to unlock updated insights.
+              </p>
+            </div>
             <button
               onClick={() => setShowReassessModal(true)}
-              className="w-full sm:w-auto px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-transform active:scale-95 shrink-0"
+              className="w-full sm:w-auto px-6 py-3 bg-white text-amber-900 font-black text-xs rounded-2xl shadow-md hover:bg-amber-50 transition-transform active:scale-95 shrink-0"
             >
-              <RefreshCw className="w-4 h-4" /> Start Reassessment
+              📝 START REASSESSMENT
             </button>
+          </div>
+        )}
+
+        {/* LARGE ACTION CARDS ROW (MIN HEIGHT 70PX) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Card 1: Start Reassessment */}
+          <button
+            onClick={() => setShowReassessModal(true)}
+            className="min-h-[85px] p-5 rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white shadow-lg shadow-blue-500/20 text-left flex items-center justify-between group transition-all duration-200 hover:-translate-y-1 active:scale-98 cursor-pointer"
+          >
+            <div className="space-y-1">
+              <span className="text-xl">📝</span>
+              <h4 className="font-extrabold text-sm group-hover:underline">Start Reassessment</h4>
+              <p className="text-[11px] text-blue-100 font-medium">Continue tracking your headaches.</p>
+            </div>
+            <ArrowRight className="w-5 h-5 text-blue-200 group-hover:translate-x-1 transition-transform" />
+          </button>
+
+          {/* Card 2: Download Passport PDF */}
+          <button
+            onClick={() => {
+              try {
+                const pdf = generatePassportPdf(assessmentDoc);
+                pdf.save(`BeatHeadache_Passport_${assessmentDoc.assessmentId}.pdf`);
+              } catch (e) {
+                alert("Failed to generate PDF");
+              }
+            }}
+            className="min-h-[85px] p-5 rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-lg shadow-emerald-500/20 text-left flex items-center justify-between group transition-all duration-200 hover:-translate-y-1 active:scale-98 cursor-pointer"
+          >
+            <div className="space-y-1">
+              <span className="text-xl">📄</span>
+              <h4 className="font-extrabold text-sm group-hover:underline">Download Passport</h4>
+              <p className="text-[11px] text-emerald-100 font-medium">Save your PDF for future visits.</p>
+            </div>
+            <Download className="w-5 h-5 text-emerald-200 group-hover:scale-110 transition-transform" />
+          </button>
+
+          {/* Card 3: Show QR Code */}
+          <button
+            onClick={() => {
+              const element = document.getElementById("qr-passport-section");
+              if (element) element.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="min-h-[85px] p-5 rounded-3xl bg-gradient-to-br from-purple-600 to-indigo-800 hover:from-purple-700 hover:to-indigo-900 text-white shadow-lg shadow-purple-500/20 text-left flex items-center justify-between group transition-all duration-200 hover:-translate-y-1 active:scale-98 cursor-pointer"
+          >
+            <div className="space-y-1">
+              <span className="text-xl">📱</span>
+              <h4 className="font-extrabold text-sm group-hover:underline">Show QR Code</h4>
+              <p className="text-[11px] text-purple-100 font-medium">Scan this anytime to continue.</p>
+            </div>
+            <QrCode className="w-5 h-5 text-purple-200 group-hover:rotate-12 transition-transform" />
+          </button>
+        </div>
+
+        {/* ALWAYS-VISIBLE QR CODE SECTION */}
+        <div id="qr-passport-section" className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm text-center space-y-4">
+          <div className="space-y-1">
+            <span className="text-[10px] font-black uppercase text-blue-600 tracking-wider">Permanent Passport Identifier</span>
+            <h3 className="text-lg font-black text-gray-900">Your Permanent Digital QR Passport</h3>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 p-4 rounded-3xl inline-block shadow-inner mx-auto">
+            <QRCodeCanvas
+              value={`${window.location.origin}/assessment/${assessmentDoc.assessmentId}`}
+              size={140}
+            />
+          </div>
+
+          <div className="max-w-md mx-auto space-y-1 text-xs text-gray-600 font-medium">
+            <p className="font-bold text-gray-900">
+              Save this QR. Scan it anytime to continue your headache journey.
+            </p>
+            <p className="text-[11px] text-gray-400">
+              This QR code never changes and automatically links to your full history.
+            </p>
           </div>
         </div>
 

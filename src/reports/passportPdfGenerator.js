@@ -167,11 +167,16 @@ export function generatePassportPdf(assessmentDoc) {
   doc.text("If you experience sudden severe headaches, fever with stiff neck, or weakness, seek immediate emergency medical care.", M + 4, cy + 13);
 
   // Footer Page Number & Brand
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.5);
+  doc.setTextColor(37, 99, 235);
+  doc.text("Already have this QR? Simply scan it anytime to continue your headache journey.", M, PH - 12);
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text("Beat Headache EMR Platform | Confidential Passport Record", M, PH - 8);
-  doc.text("Page 1 of 1", PW - M - 12, PH - 8);
+  doc.text(`Beat Headache EMR Platform | Confidential Passport Record ID: ${assessmentId}`, M, PH - 6);
+  doc.text("Page 1 of 1", PW - M - 12, PH - 6);
 
   return doc;
 }

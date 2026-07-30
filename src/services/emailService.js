@@ -60,8 +60,9 @@ export function buildAssessmentHtmlEmail(assessmentDoc) {
           ${(latestEntry.recommendations || ["Maintain healthy hydration and sleep habits."]).map(r => `<li>${r}</li>`).join("")}
         </ul>
 
-        <div style="text-align: center; margin-top: 24px;">
+        <div style="text-align: center; margin-top: 24px; display: flex; gap: 12px; justify-content: center;">
           <a href="${passportUrl}" class="btn">View Online Digital Passport</a>
+          <a href="${window.location.origin}/continue-assessment" class="btn" style="background:#0f172a;">Continue Assessment</a>
         </div>
 
         <div class="footer">

@@ -37,6 +37,9 @@ export default function Footer() {
                 <Link to="/" className="hover:text-cyan-400 dark:hover:text-cyan-400 focus-visible:text-cyan-400 focus-visible:outline-none transition-colors duration-200">Home</Link>
               </li>
               <li>
+                <Link to="/continue-assessment" className="hover:text-cyan-400 text-cyan-300 font-bold focus-visible:text-cyan-400 focus-visible:outline-none transition-colors duration-200">📷 Continue Assessment</Link>
+              </li>
+              <li>
                 <Link to="/about" className="hover:text-cyan-400 dark:hover:text-cyan-400 focus-visible:text-cyan-400 focus-visible:outline-none transition-colors duration-200">About</Link>
               </li>
               <li>

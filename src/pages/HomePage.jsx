@@ -11,7 +11,8 @@ import {
   Database,
   Apple,
   ClipboardList,
-  Activity
+  Activity,
+  QrCode
 } from "lucide-react";
 import CTA from "../components/CTA";
 

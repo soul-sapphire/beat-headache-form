@@ -178,13 +178,38 @@ export default function SelfAssessmentPage() {
               </div>
             </div>
 
-            <div className="pt-4">
+            <div className="pt-4 space-y-7">
               <button
                 onClick={handleNext}
-                className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-base shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 mx-auto transition-transform active:scale-95"
+                className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-base shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 mx-auto transition-transform active:scale-95 cursor-pointer"
               >
                 🚀 Start Assessment <ArrowRight className="w-5 h-5" />
               </button>
+
+              {/* Returning Patient Block (28px spacing) */}
+              <div className="border-t border-gray-100 pt-7 space-y-4 max-w-md mx-auto">
+                <div className="space-y-1 text-center">
+                  <h3 className="text-sm font-extrabold text-gray-900">
+                    Already have a Digital Headache Passport?
+                  </h3>
+                  <p className="text-xs text-gray-500 font-medium">
+                    Continue your previous assessment by scanning your QR Code or entering your Assessment ID.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <button
+                    onClick={() => navigate("/continue-assessment")}
+                    className="w-full h-[58px] bg-white hover:bg-slate-50 text-blue-600 border-2 border-blue-600 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-xs transition-all duration-200 hover:-translate-y-0.5 active:scale-98 cursor-pointer mx-auto"
+                  >
+                    <QrCode className="w-5 h-5 text-blue-600" />
+                    <span>📷 Continue Assessment</span>
+                  </button>
+                  <p className="text-[11px] text-center text-gray-400 font-medium">
+                    Scan your QR Code or enter your Assessment ID.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}

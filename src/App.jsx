@@ -30,6 +30,7 @@ import QRScannerPage from "./pages/QRScannerPage";
 
 import SelfAssessmentPage from "./pages/SelfAssessmentPage";
 import AssessmentPassportPage from "./pages/AssessmentPassportPage";
+import ContinueAssessmentPage from "./pages/ContinueAssessmentPage";
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/self-assessment" element={<SelfAssessmentPage />} />
+            <Route path="/continue-assessment" element={<ContinueAssessmentPage />} />
             <Route path="/assessment/:assessmentId" element={<AssessmentPassportPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/services" element={<ServicesPage />} />
