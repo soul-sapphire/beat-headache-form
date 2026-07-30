@@ -349,7 +349,7 @@ export default function DoctorPatientsPage() {
                   </div>
                 )}
                 <Link
-                  to={`/doctor/encounter/new/${selectedPatient.patientCode}`}
+                  to={`/doctor/followup/${selectedPatient.patientCode}`}
                   className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-sm transition-colors text-center shrink-0"
                 >
                   + New Encounter

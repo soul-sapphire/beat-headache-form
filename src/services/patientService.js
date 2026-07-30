@@ -461,6 +461,24 @@ const saveResearchRow = async (
 export const saveEncounterReport = async (
   patientCode, doctorUid, doctorName, doctorEmail, encounterData
 ) => {
+  console.log("Saving encounter...");
+  console.log("patientCode =", patientCode);
+  const collectionPath = `patients/${patientCode}/encounters`;
+  console.log("collection path =", collectionPath);
+
+  if (!patientCode) {
+    console.error("[patientService] saveEncounterReport failed: patientCode is missing!");
+    throw new Error("Cannot save encounter: patientCode is missing.");
+  }
+
+  const visitDateVal = encounterData.visitDate || new Date().toISOString().slice(0, 10);
+  const visitTypeVal = encounterData.visitType || (encounterData.visitNumber > 1 ? 'Follow-up Visit' : 'Initial Assessment');
+  const encounterTypeVal = encounterData.encounterType || (visitTypeVal === 'Initial Assessment' ? 'initial' : 'followup');
+  const diagnosisVal = encounterData.diagnosisReviewSummary || encounterData.patientSummaryReport || 'Clinical Assessment';
+  const fresshScoreVal = Number(encounterData.fresshScore) || 0;
+  const doctorVal = doctorName || 'Attending Doctor';
+  const visitNumberVal = Number(encounterData.visitNumber) || 1;
+
   // 1. Save encounter document
   const encounterRef = collection(db, 'patients', patientCode, 'encounters');
   const encounterPayload = sanitizeForFirestore({
@@ -468,58 +486,112 @@ export const saveEncounterReport = async (
     doctorUid,
     doctorName,
     doctorEmail,
-    visitDate: encounterData.visitDate || new Date().toISOString().slice(0, 10),
-    visitType: encounterData.visitType || 'Follow-up',
+    visitDate: visitDateVal,
+    visitType: visitTypeVal,
+    encounterType: encounterTypeVal,
+    visitNumber: visitNumberVal,
     patientSummaryReport: encounterData.patientSummaryReport || '',
     doctorClinicalReport: encounterData.doctorClinicalReport || '',
     redFlagsSummary: encounterData.redFlagsSummary || 'None',
-    diagnosisReviewSummary: encounterData.diagnosisReviewSummary || '',
-    fresshScore: encounterData.fresshScore ?? 0,
+    diagnosisReviewSummary: diagnosisVal,
+    fresshScore: fresshScoreVal,
     fresshDetails: encounterData.fresshDetails || {},
     symptomsSummary: encounterData.symptomsSummary || '',
     managementPlan: encounterData.managementPlan || '',
     doctorNotes: encounterData.doctorNotes || '',
+    medications: encounterData.medications || '',
+    medicationChanges: encounterData.medicationChanges || '',
+    investigations: encounterData.investigations || '',
+    recommendations: encounterData.recommendations || encounterData.managementPlan || '',
+    // Additional alias properties for complete compatibility
+    diagnosis: diagnosisVal,
+    doctor: doctorVal,
+    date: visitDateVal,
     reportGeneratedAt: serverTimestamp(),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 
-  const newDoc = await addDoc(encounterRef, encounterPayload);
+  console.log("Creating document...");
+  console.log("[patientService] Writing payload to Firestore:", encounterPayload);
 
-  // 2. Ensure doctor is linked to patient & update latest stats
-  const patientRef = doc(db, 'patients', patientCode);
-  const patientDoc = await getDoc(patientRef);
-  if (patientDoc.exists()) {
-    const pData = patientDoc.data();
-    const linked = pData.linkedDoctorUids || [];
-    const updatePayload = {
-      updatedAt: serverTimestamp(),
-      lastVisitAt: serverTimestamp(),
-      latestDiagnosis: encounterData.diagnosisReviewSummary || pData.latestDiagnosis || '',
-      latestFresshScore: encounterData.fresshScore ?? pData.latestFresshScore ?? 0,
-    };
+  let newDoc;
+  try {
+    newDoc = await addDoc(encounterRef, encounterPayload);
+    console.log("[PROVE ENCOUNTER CREATION] 1. Captured DocumentReference returned by addDoc()");
+    console.log("[PROVE ENCOUNTER CREATION] Document ID =", newDoc.id);
+    console.log("[PROVE ENCOUNTER CREATION] Full Firestore path =", newDoc.path);
+    console.log("[PROVE ENCOUNTER CREATION] Connected Firebase Project ID =", db?.app?.options?.projectId || "beat-headache");
 
-    if (!linked.includes(doctorUid)) {
-      updatePayload.linkedDoctorUids = [...linked, doctorUid];
+    // Immediate getDoc verification
+    const docSnap = await getDoc(newDoc);
+    console.log("[PROVE ENCOUNTER CREATION] 2. getDoc(newDoc) verification:");
+    console.log("   - exists() =", docSnap.exists());
+    console.log("   - path =", docSnap.ref.path);
+    console.log("   - document data =", docSnap.data());
+
+    if (!docSnap.exists()) {
+      console.error("[PROVE ENCOUNTER CREATION] EXPLANATION: getDoc returned false. Document was not retrieved immediately after write.");
     }
 
-    await setDoc(patientRef, updatePayload, { merge: true });
+    // Immediate subcollection query
+    const subcolSnap = await getDocs(collection(db, 'patients', patientCode, 'encounters'));
+    console.log("[PROVE ENCOUNTER CREATION] 3. Subcollection query patients/" + patientCode + "/encounters:");
+    console.log("   - Number of documents =", subcolSnap.size);
+    console.log("   - Every document ID =", subcolSnap.docs.map(d => d.id));
 
-    // 3. Save research row (uses patient birthYear)
-    await saveResearchRow(
-      patientCode,
-      newDoc.id,
-      pData.birthYear,
-      doctorUid,
-      doctorName,
-      encounterData
-    );
+    if (subcolSnap.size === 0) {
+      console.error("[PROVE ENCOUNTER CREATION] EXPLANATION: Query returned 0 documents. Check security rules or project ID alignment.");
+    } else {
+      console.log("Write successful.");
+    }
+  } catch (err) {
+    console.error("[PROVE ENCOUNTER CREATION] Firestore write exception in addDoc:");
+    console.error("   - Code:", err?.code);
+    console.error("   - Message:", err?.message);
+    console.error("   - Full Error:", err);
+    throw err;
+  }
+
+  // 2. Ensure doctor is linked to patient & update latest stats
+  try {
+    const patientRef = doc(db, 'patients', patientCode);
+    const patientDoc = await getDoc(patientRef);
+    if (patientDoc.exists()) {
+      const pData = patientDoc.data();
+      const linked = pData.linkedDoctorUids || [];
+      const updatePayload = {
+        updatedAt: serverTimestamp(),
+        lastVisitAt: serverTimestamp(),
+        latestDiagnosis: diagnosisVal,
+        latestFresshScore: fresshScoreVal,
+        latestEncounterId: newDoc.id,
+        latestVisitNumber: visitNumberVal,
+      };
+
+      if (doctorUid && !linked.includes(doctorUid)) {
+        updatePayload.linkedDoctorUids = [...linked, doctorUid];
+      }
+
+      await setDoc(patientRef, updatePayload, { merge: true });
+
+      // 3. Save research row (uses patient birthYear)
+      await saveResearchRow(
+        patientCode,
+        newDoc.id,
+        pData.birthYear,
+        doctorUid,
+        doctorName,
+        encounterData
+      );
+    }
+  } catch (patientUpdateErr) {
+    console.error("[patientService] Non-critical error updating patient record or research row:", patientUpdateErr);
   }
 
   // 4. Access log entries
   await addAccessLog(patientCode, doctorUid, doctorName, doctorEmail, 'encounter_created');
   await addAccessLog(patientCode, doctorUid, doctorName, doctorEmail, 'report_saved');
-  await addAccessLog(patientCode, doctorUid, doctorName, doctorEmail, 'research_row_created');
 
   return newDoc.id;
 };
@@ -551,14 +623,17 @@ export const getEncountersForPatient = async (
   }
 
   const encsRef = collection(db, 'patients', patientCode, 'encounters');
-  console.log(`[patientService] getEncountersForPatient building query...`);
-  const q = query(encsRef, orderBy('createdAt', 'desc'));
+  console.log(`[patientService] getEncountersForPatient building query ordered by visitNumber asc...`);
+  const q = query(encsRef, orderBy('visitNumber', 'asc'));
   console.log(`[patientService] getEncountersForPatient calling getDocs(q)...`);
   const encsSnap = await getDocs(q);
   console.log(`[patientService] getEncountersForPatient getDocs(q) returned. size = ${encsSnap.size}`);
 
   const encounters = [];
   encsSnap.forEach((d) => encounters.push({ id: d.id, ...d.data() }));
+
+  // Secondary defensive sort by visitNumber ascending
+  encounters.sort((a, b) => (Number(a.visitNumber) || 0) - (Number(b.visitNumber) || 0));
 
   if (encounters.length > 0) {
     // Non-blocking access log — do NOT await so encounters load is never blocked

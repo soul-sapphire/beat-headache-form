@@ -28,6 +28,9 @@ import DoctorPatientsPage from "./pages/DoctorPatientsPage";
 import PatientProfilePage from "./pages/PatientProfilePage";
 import QRScannerPage from "./pages/QRScannerPage";
 
+import SelfAssessmentPage from "./pages/SelfAssessmentPage";
+import AssessmentPassportPage from "./pages/AssessmentPassportPage";
+
 function App() {
   return (
     <AuthProvider>
@@ -35,6 +38,8 @@ function App() {
         <SiteLayout>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/self-assessment" element={<SelfAssessmentPage />} />
+            <Route path="/assessment/:assessmentId" element={<AssessmentPassportPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/services" element={<ServicesPage />} />
             <Route path="/resources" element={<ResourcesPage />} />

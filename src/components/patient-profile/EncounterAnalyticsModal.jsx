@@ -40,8 +40,13 @@ export default function EncounterAnalyticsModal({
               #{encounterNumber}
             </div>
             <div>
-              <h2 className="font-bold text-gray-900">Encounter Analytics</h2>
-              <p className="text-xs text-gray-500 flex items-center gap-1">
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold text-gray-900">Encounter Analytics</h2>
+                <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
+                  {encounter.visitType || (encounter.encounterType === 'initial' ? 'Initial Assessment' : 'Follow-up Visit')}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                 <Calendar className="w-3 h-3" />
                 {new Date(encounter.visitDate || encounter.createdAt).toLocaleDateString()} • Dr. {encounter.doctorName}
               </p>

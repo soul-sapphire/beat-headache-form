@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { createPatientShell } from "../services/patientService";
+import { linkAssessmentToPatient } from "../services/assessmentService";
 import { useNavigate, Link } from "react-router-dom";
 import { UserPlus, ArrowRight, Copy, CheckCircle, ChevronLeft } from "lucide-react";
 
@@ -10,6 +11,7 @@ export default function DoctorNewPatientPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [birthYear, setBirthYear] = useState("");
+  const [assessmentIdInput, setAssessmentIdInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [generatedPatientCode, setGeneratedPatientCode] = useState(null);
   const [generatedQrToken, setGeneratedQrToken] = useState(null);
@@ -19,6 +21,11 @@ export default function DoctorNewPatientPage() {
     e.preventDefault();
     if (!firstName || !lastName || !birthYear) return;
     
+    if (!userData || !userData.uid) {
+      alert("Doctor authentication required to create patient record.");
+      return;
+    }
+
     setLoading(true);
     try {
       const result = await createPatientShell(
@@ -33,6 +40,10 @@ export default function DoctorNewPatientPage() {
       const qr = typeof result === "object" && result?.qrToken ? result.qrToken : code;
       setGeneratedPatientCode(code);
       setGeneratedQrToken(qr);
+
+      if (assessmentIdInput.trim()) {
+        await linkAssessmentToPatient(assessmentIdInput.trim(), code);
+      }
     } catch (error) {
       console.error("Error creating patient shell:", error);
       alert("Failed to create patient record. Check console for details.");
@@ -106,6 +117,18 @@ export default function DoctorNewPatientPage() {
                   onChange={(e) => setBirthYear(e.target.value)}
                   className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                   placeholder="e.g. 2004"
+                />
+              </div>
+
+              <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-100 space-y-2">
+                <label className="block text-xs font-bold text-blue-900">Pre-Clinic Self-Assessment ID (Optional)</label>
+                <p className="text-[11px] text-blue-700">Link patient's prior self-assessment history (e.g. BH-HA-7X4P8Q).</p>
+                <input
+                  type="text"
+                  value={assessmentIdInput}
+                  onChange={(e) => setAssessmentIdInput(e.target.value.toUpperCase())}
+                  className="w-full px-3 py-1.5 text-xs font-mono font-bold bg-white border border-blue-200 rounded-lg uppercase"
+                  placeholder="BH-HA-XXXXXX"
                 />
               </div>
 

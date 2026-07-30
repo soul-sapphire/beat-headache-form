@@ -119,19 +119,25 @@ export default function HomePage() {
                   Designed to help families prepare for consultation and help clinicians review headache patterns more efficiently.
                 </p>
                 
-                <div className="pt-4 flex flex-col sm:flex-row justify-center lg:justify-start gap-4">
+                <div className="pt-4 flex flex-col sm:flex-row justify-center lg:justify-start gap-3 flex-wrap">
                   <Link
-                    to="/new-patient"
-                    className="flex items-center justify-center space-x-2 px-8 py-4 bg-gradient-to-r from-sky-600 via-sky-500 to-blue-600 hover:from-sky-700 hover:to-blue-700 dark:from-cyan-400 dark:via-teal-400 dark:to-sky-400 dark:hover:from-cyan-500 dark:hover:to-sky-500 text-white dark:text-slate-950 rounded-2xl font-bold shadow-lg shadow-sky-500/20 dark:shadow-cyan-500/20 hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5 cursor-pointer focus-visible:ring-4 focus-visible:ring-sky-300 focus-visible:outline-none"
+                    to="/self-assessment"
+                    className="flex items-center justify-center space-x-2 px-8 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-2xl font-black shadow-lg shadow-blue-500/25 hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5 cursor-pointer"
                   >
-                    <span>Start New Patient Form</span>
+                    <span>🧠 Headache Self-Assessment</span>
                     <ArrowRight className="h-5 w-5" />
                   </Link>
                   <Link
-                    to="/about"
-                    className="flex items-center justify-center px-6 py-4 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white border border-slate-200 dark:border-white/20 rounded-2xl font-semibold backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 focus-visible:ring-4 focus-visible:ring-sky-300 focus-visible:outline-none"
+                    to="/new-patient"
+                    className="flex items-center justify-center space-x-2 px-6 py-4 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white border border-slate-200 dark:border-white/20 rounded-2xl font-bold transition-all duration-200 hover:-translate-y-0.5"
                   >
-                    Learn How It Works
+                    <span>Clinical Intake</span>
+                  </Link>
+                  <Link
+                    to="/about"
+                    className="flex items-center justify-center px-5 py-4 bg-slate-50 hover:bg-slate-100 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 rounded-2xl font-semibold transition-all duration-200"
+                  >
+                    Learn More
                   </Link>
                 </div>
 

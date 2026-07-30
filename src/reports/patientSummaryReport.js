@@ -247,7 +247,7 @@ export function generatePatientReportPdf(form, fresshTotal) {
     y += 9.2;
 
     drawFieldBox("Referral", form.referral?.source || "N/A", M_LEFT, y, bw, 8.0);
-    drawFieldBox("Visit Type", form.clinicPath?.initiatedBy || "N/A", M_LEFT + bw + 2, y, bw, 8.0);
+    drawFieldBox("Visit Type", form.visitType || (form.encounterType === 'initial' ? 'Initial Assessment' : form.clinicPath?.initiatedBy) || "Initial Assessment", M_LEFT + bw + 2, y, bw, 8.0);
     drawFieldBox("Previous Diagnosis", form.clinicPath?.previousDiagnosis || "N/A", M_LEFT + bw * 2 + 4, y, bw, 8.0);
     y += 10.5;
 

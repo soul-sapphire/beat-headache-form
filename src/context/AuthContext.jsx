@@ -15,16 +15,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
 
-  const TEST_DOCTOR_PROFILE = {
-    uid: "test-doctor-local",
-    email: "testdoctor@beatheadache.local",
-    displayName: "Test Doctor",
-    role: "doctor",
-    approved: true,
-    status: "approved"
-  };
-
-  // Fetch the Firestore user document for a given Firebase user
   const normalizeProfile = (uid, data) => {
     const approved =
       data.approved === true || data.approved === "true"
@@ -36,7 +26,6 @@ export function AuthProvider({ children }) {
   };
 
   const fetchUserProfile = useCallback(async (user) => {
-    console.log("[AuthContext] fetchUserProfile START for user:", user?.uid);
     if (!user) {
       setUserProfile(null);
       setAuthError(null);
@@ -44,32 +33,31 @@ export function AuthProvider({ children }) {
     }
     try {
       const docRef = doc(db, "users", user.uid);
-      console.log("[AuthContext] getDoc for user profile starting...");
       const docSnap = await getDoc(docRef);
-      console.log("[AuthContext] user profile getDoc complete. exists =", docSnap.exists());
       if (docSnap.exists()) {
-        setUserProfile(normalizeProfile(user.uid, docSnap.data()));
+        const profile = normalizeProfile(user.uid, docSnap.data());
+        setUserProfile(profile);
+
+        if (profile.approved !== true || profile.status !== "approved") {
+          setAuthError("Your doctor account is pending administrator approval.");
+        } else {
+          setAuthError(null);
+        }
       } else {
         setUserProfile(null);
+        setAuthError("No doctor profile document found for this user account.");
       }
-      setAuthError(null);
     } catch (err) {
-      if (import.meta.env.DEV) {
-        console.error("[AuthContext] Firestore fetch error:", err.code || err.message);
-      }
+      console.error("[AuthContext] User profile fetch error:", err.code || err.message);
       setUserProfile(null);
-
       if (err.code === "permission-denied") {
-        setAuthError("Permission denied loading your profile. Contact admin.");
-      } else if (err.code === "unavailable" || err.message?.includes("offline")) {
-        setAuthError("You appear to be offline. Please check your connection and retry.");
+        setAuthError("Permission denied loading account profile. Contact administration.");
       } else {
-        setAuthError("Could not load your account profile. Please try again.");
+        setAuthError("Could not load account profile. Please check your connection.");
       }
     }
   }, []);
 
-  // Call from login/register to force a re-read; optional user override right after sign-in
   const refreshUserProfile = useCallback(
     async (userOverride) => {
       const user = userOverride || firebaseUser;
@@ -81,70 +69,36 @@ export function AuthProvider({ children }) {
   );
 
   const logout = useCallback(async () => {
-    localStorage.removeItem("beatHeadacheTestUser");
     await signOut(auth);
     setFirebaseUser(null);
     setUserProfile(null);
     setAuthError(null);
   }, []);
 
-  const loginWithTestCredentials = useCallback(async (username, password) => {
-    setLoading(true);
-    setAuthError(null);
-    try {
-      if (username === "doctor" && password === "test123") {
-        localStorage.setItem("beatHeadacheTestUser", "true");
-        setFirebaseUser({ uid: TEST_DOCTOR_PROFILE.uid, email: TEST_DOCTOR_PROFILE.email, displayName: TEST_DOCTOR_PROFILE.displayName });
-        setUserProfile(TEST_DOCTOR_PROFILE);
-        return true;
-      } else {
-        throw new Error("Invalid test username or password.");
-      }
-    } catch (err) {
-      setAuthError(err.message);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    const checkTestUser = () => {
-      const isTestUser = localStorage.getItem("beatHeadacheTestUser");
-      if (isTestUser === "true") {
-        setFirebaseUser({ uid: TEST_DOCTOR_PROFILE.uid, email: TEST_DOCTOR_PROFILE.email, displayName: TEST_DOCTOR_PROFILE.displayName });
-        setUserProfile(TEST_DOCTOR_PROFILE);
-        setLoading(false);
-        return true;
-      }
-      return false;
-    };
-
-    if (checkTestUser()) return;
-
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       setLoading(true);
-      try {
+      if (user) {
         await fetchUserProfile(user);
-      } finally {
-        setLoading(false);
+      } else {
+        setUserProfile(null);
+        setAuthError(null);
       }
+      setLoading(false);
     });
 
     return unsubscribe;
   }, [fetchUserProfile]);
 
   const value = {
-    // Primary names
     firebaseUser,
     userProfile,
     loading,
     authError,
     logout,
-    loginWithTestCredentials,
     refreshUserProfile,
-    // Backward-compat aliases used in existing pages
+    // Standard aliases
     currentUser: firebaseUser,
     userData: userProfile,
   };

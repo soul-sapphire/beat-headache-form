@@ -2022,7 +2022,7 @@ function Grid({ children }) {
     return <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{children}</div>;
 }
 
-export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncounter, hideResearchExport }) {
+export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncounter, hideResearchExport, encounterType }) {
     const [page, setPage] = useState(0);
     const [form, setForm] = useState(() => {
         const init = createInitialState();
@@ -3616,7 +3616,9 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                             }}
                             className="w-full rounded-2xl bg-sky-600 px-6 py-4 text-sm font-bold text-white shadow-lg shadow-sky-200 transition hover:bg-sky-700"
                         >
-                            {onSaveEncounter ? "Save Encounter to Patient Record" : "Submit Form"}
+                            {onSaveEncounter
+                                ? (encounterType === 'followup' ? "Save Follow-up Visit to Patient Record" : "Save Initial Assessment to Patient Record")
+                                : "Submit Form"}
                         </button>
                     </div>
                 </Card>
@@ -3632,7 +3634,9 @@ export default function BeatHeadacheNewPatientForm({ patientContext, onSaveEncou
                 <header className="rounded-3xl bg-gradient-to-br from-sky-700 to-cyan-500 p-6 text-white shadow-lg md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
                         <p className="text-sm font-semibold uppercase tracking-[0.25em] text-sky-100">Beat Headache</p>
-                        <h1 className="mt-2 text-3xl font-black md:text-5xl">New Patient Form</h1>
+                        <h1 className="mt-2 text-3xl font-black md:text-5xl">
+                            {encounterType === 'followup' ? 'Follow-up Encounter Form' : 'New Patient Form'}
+                        </h1>
                         <p className="mt-3 max-w-xl text-sm leading-6 text-sky-50 md:text-base">
                             A React front-end version of the child headache intake form, organized as a 7-page wizard for a cleaner patient and doctor workflow.
                         </p>

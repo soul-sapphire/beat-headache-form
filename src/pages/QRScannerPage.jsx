@@ -68,10 +68,15 @@ export default function QRScannerPage() {
     setLoading(true);
     setError(null);
 
-    const activeUser = userData || userProfile;
-    const uid = activeUser?.uid || "unknown-doctor";
-    const name = activeUser?.displayName || "Doctor";
-    const email = activeUser?.email || "";
+    const activeDoctor = userData || userProfile;
+    if (!activeDoctor || !activeDoctor.uid) {
+      setError("Doctor authentication required to scan QR code.");
+      setLoading(false);
+      return;
+    }
+    const uid = activeDoctor.uid;
+    const name = activeDoctor.displayName || activeDoctor.name || "Doctor";
+    const email = activeDoctor.email || "";
     const isUserAdmin = isAdmin || userProfile?.role === "admin";
 
     try {

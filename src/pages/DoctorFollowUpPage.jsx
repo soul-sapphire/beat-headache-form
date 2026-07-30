@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getPatientByCode, saveEncounterReport } from '../services/patientService';
+import { getPatientByCode, getEncountersForPatient, saveEncounterReport } from '../services/patientService';
+import FresshProgressDashboard from '../components/patient-profile/FresshProgressDashboard';
 import {
   ChevronLeft,
   Loader2,
@@ -25,9 +26,12 @@ export default function DoctorFollowUpPage() {
   const navigate = useNavigate();
 
   const [patient, setPatient] = useState(null);
+  const [encounters, setEncounters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [savedFeedbackData, setSavedFeedbackData] = useState(null);
 
   // Form State for Follow-up Encounter (Dynamic visit fields only)
   const [visitDate, setVisitDate] = useState(new Date().toISOString().slice(0, 10));
@@ -66,26 +70,36 @@ export default function DoctorFollowUpPage() {
   const [managementPlan, setManagementPlan] = useState('1. Maintain regular hydration.\n2. Follow-up in 4 weeks.');
 
   useEffect(() => {
-    async function loadPatient() {
+    async function loadPatientAndEncounters() {
       if (!patientCode || !userData) return;
       try {
         const isAdmin = userData?.role === 'admin';
-        const result = await getPatientByCode(
-          patientCode,
-          userData.uid,
-          userData.displayName || 'Doctor',
-          userData.email || '',
-          isAdmin
-        );
+        const [pResult, encsResult] = await Promise.all([
+          getPatientByCode(
+            patientCode,
+            userData.uid,
+            userData.displayName || 'Doctor',
+            userData.email || '',
+            isAdmin
+          ),
+          getEncountersForPatient(
+            patientCode,
+            userData.uid,
+            userData.displayName || 'Doctor',
+            userData.email || '',
+            isAdmin
+          )
+        ]);
 
-        if (!result) {
+        if (!pResult) {
           setError('Patient record not found.');
-        } else if (result.accessDenied) {
-          setError(result.message);
+        } else if (pResult.accessDenied) {
+          setError(pResult.message);
         } else {
-          setPatient(result.data);
-          if (result.data?.latestDiagnosis) {
-            setDiagnosisCategory(result.data.latestDiagnosis);
+          setPatient(pResult.data);
+          setEncounters(encsResult || []);
+          if (pResult.data?.latestDiagnosis) {
+            setDiagnosisCategory(pResult.data.latestDiagnosis);
           }
         }
       } catch (err) {
@@ -96,7 +110,7 @@ export default function DoctorFollowUpPage() {
       }
     }
 
-    loadPatient();
+    loadPatientAndEncounters();
   }, [patientCode, userData]);
 
   const calculateFresshTotal = () => {
@@ -125,18 +139,36 @@ export default function DoctorFollowUpPage() {
     e.preventDefault();
     if (!patient) return;
 
+    if (!userData || !userData.uid) {
+      alert('Doctor authentication required to save follow-up encounter.');
+      return;
+    }
+
     setSaving(true);
     try {
       const fresshTotal = calculateFresshTotal();
+      const visitNumber = (encounters ? encounters.length : 0) + 1;
+
+      const visitTypeLabel = visitNumber === 1 ? 'Initial Assessment' : 'Follow-up Visit';
+      const encounterTypeLabel = visitNumber === 1 ? 'initial' : 'followup';
+
       const encounterData = {
         visitDate,
-        visitType: 'Follow-up',
-        patientSummaryReport: `Follow-up Visit (${visitDate}): ${diagnosisCategory}. FRESSH Score: ${fresshTotal}/60. ${doctorNotes}`,
+        visitType: visitTypeLabel,
+        encounterType: encounterTypeLabel,
+        visitNumber,
+        patientSummaryReport: `${visitTypeLabel} ${visitNumber} (${visitDate}): ${diagnosisCategory}. FRESSH Score: ${fresshTotal}/60. ${doctorNotes}`,
         doctorClinicalReport: `Diagnosis: ${diagnosisCategory}\nSeverity: ${severity}\nDays/4wks: ${headacheDays}\nMedications: ${currentMeds}\nManagement Plan:\n${managementPlan}`,
         redFlagsSummary: 'None',
         diagnosisReviewSummary: diagnosisCategory,
         fresshScore: fresshTotal,
         fresshDetails: {
+          Food: fressh.Food,
+          Relaxation: fressh.Relaxation,
+          Exercise: fressh.Exercise,
+          Sleep: fressh.Sleep,
+          ScreenTime: fressh.ScreenTime,
+          Hydration: fressh.Hydration,
           'Food Intake Pattern': `${fressh.Food}/10`,
           Relaxation: `${fressh.Relaxation}/10`,
           Exercise: `${fressh.Exercise}/10`,
@@ -144,11 +176,16 @@ export default function DoctorFollowUpPage() {
           'Screen time': `${fressh.ScreenTime}/10`,
           Hydration: `${fressh.Hydration}/10`,
         },
-        symptomsSummary: `Location: ${locations.join(', ')} | Severity: ${severity} | Duration: ${duration}`,
+        symptomsSummary: `Location: ${locations.join(', ')} | Severity: ${severity} | Duration: ${duration} | Headache Days: ${headacheDays}/4wks | Medicine Days: ${medicineDays}/4wks`,
         managementPlan,
         doctorNotes,
+        medications: currentMeds,
+        medicationChanges: medChanges,
+        investigations: `Blood: ${bloodResult} | Imaging: ${imagingResult} ${imagingFinding ? '(' + imagingFinding + ')' : ''} | Ophthalmology: ${ophthalmology}`,
+        recommendations: managementPlan,
       };
 
+      console.log(`[DoctorFollowUpPage] Saving Visit ${visitNumber} Follow-up Encounter for patient: ${patientCode}`);
       await saveEncounterReport(
         patientCode,
         userData.uid,
@@ -157,11 +194,20 @@ export default function DoctorFollowUpPage() {
         encounterData
       );
 
-      alert('Follow-up encounter saved successfully.');
-      navigate(`/patient/${patientCode}`);
+      const previousFressh = encounters && encounters.length > 0 ? (Number(encounters[encounters.length - 1].fresshScore) || 0) : null;
+      const fresshDiff = previousFressh !== null ? fresshTotal - previousFressh : 0;
+
+      setSavedFeedbackData({
+        visitNumber,
+        latestFressh: fresshTotal,
+        previousFressh,
+        fresshDiff,
+        visitTypeLabel,
+      });
+      setShowSuccessModal(true);
     } catch (err) {
       console.error('Failed to save follow-up encounter:', err);
-      alert('Failed to save follow-up encounter. Please try again.');
+      alert('Failed to save follow-up encounter: ' + (err.message || 'Please check your connection and security rules.'));
     } finally {
       setSaving(false);
     }
@@ -241,6 +287,79 @@ export default function DoctorFollowUpPage() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 pt-6 space-y-6">
+        {/* PART 5 - Previous vs Current Visit Comparison Card */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+            <div className="flex items-center gap-2">
+              <Activity className="w-5 h-5 text-blue-600" />
+              <h3 className="font-bold text-gray-900 text-base">Longitudinal Visit Comparison</h3>
+            </div>
+            <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
+              Visit {(encounters ? encounters.length : 0) + 1} (In Progress)
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            {/* Previous Visit */}
+            <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-500 uppercase">Previous Visit</span>
+                <span className="text-xs font-mono font-bold text-gray-700">
+                  Visit {encounters && encounters.length > 0 ? (encounters[encounters.length - 1].visitNumber || encounters.length) : 1}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500">
+                Date: {encounters && encounters.length > 0 ? (encounters[encounters.length - 1].visitDate || 'Previous') : 'None'}
+              </p>
+              <p className="text-xs font-semibold text-gray-800 truncate">
+                Diagnosis: {encounters && encounters.length > 0 ? (encounters[encounters.length - 1].diagnosisReviewSummary || encounters[encounters.length - 1].diagnosis || 'Initial') : 'N/A'}
+              </p>
+              <div className="text-xl font-black text-gray-800">
+                FRESSH {encounters && encounters.length > 0 ? (Number(encounters[encounters.length - 1].fresshScore) || 0) : 'N/A'}
+              </div>
+            </div>
+
+            {/* Current Visit */}
+            <div className="bg-blue-50/60 border border-blue-200 p-4 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-blue-700 uppercase">Current Visit</span>
+                <span className="text-xs font-mono font-bold text-blue-800">
+                  Visit {(encounters ? encounters.length : 0) + 1}
+                </span>
+              </div>
+              <p className="text-xs text-blue-600">Date: {visitDate}</p>
+              <p className="text-xs font-semibold text-blue-900 truncate">Diagnosis: {diagnosisCategory}</p>
+              <div className="text-xl font-black text-blue-700">
+                FRESSH {calculateFresshTotal()} / 60
+              </div>
+            </div>
+
+            {/* Score Difference */}
+            <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl flex flex-col justify-between">
+              <span className="text-xs font-bold text-gray-500 uppercase">Score Difference</span>
+              {(() => {
+                const prev = encounters && encounters.length > 0 ? (Number(encounters[encounters.length - 1].fresshScore) || 0) : null;
+                const diff = prev !== null ? calculateFresshTotal() - prev : 0;
+                return (
+                  <div>
+                    <div className={`text-3xl font-black ${diff >= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      {diff > 0 ? `+${diff}` : diff} pts
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {diff > 0 ? 'Improvement' : diff < 0 ? 'Score decreased' : 'No change'} vs previous visit
+                    </p>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+
+        {/* Interactive FRESSH Progress Dashboard */}
+        {encounters && encounters.length > 0 && (
+          <FresshProgressDashboard encounters={encounters} />
+        )}
+
         {/* Preloaded Static Info Notice */}
         <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-5 flex items-start gap-4">
           <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl shrink-0">
@@ -578,6 +697,56 @@ export default function DoctorFollowUpPage() {
           </div>
         </form>
       </div>
+
+      {/* Save Success Feedback Modal */}
+      {showSuccessModal && savedFeedbackData && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 border border-gray-100 space-y-6 text-center animate-in zoom-in-95 duration-300">
+            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+            
+            <div>
+              <h2 className="text-2xl font-black text-gray-900">Encounter Saved</h2>
+              <p className="text-sm font-semibold text-blue-600 mt-1">
+                Visit {savedFeedbackData.visitNumber} – {savedFeedbackData.visitTypeLabel}
+              </p>
+            </div>
+
+            <div className="bg-gray-50 border border-gray-200/80 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between text-xs border-b border-gray-200/60 pb-2">
+                <span className="text-gray-500 font-semibold">Latest FRESSH Score:</span>
+                <span className="font-black text-blue-600 text-base">{savedFeedbackData.latestFressh} / 60</span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs border-b border-gray-200/60 pb-2">
+                <span className="text-gray-500 font-semibold">Previous FRESSH Score:</span>
+                <span className="font-bold text-gray-700">
+                  {savedFeedbackData.previousFressh !== null ? `${savedFeedbackData.previousFressh} / 60` : 'N/A (Initial Visit)'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500 font-semibold">Score Difference:</span>
+                <span className={`font-black text-sm ${savedFeedbackData.fresshDiff >= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  {savedFeedbackData.fresshDiff > 0 ? `+${savedFeedbackData.fresshDiff}` : savedFeedbackData.fresshDiff}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-500 leading-relaxed bg-blue-50/80 text-blue-800 p-3 rounded-xl border border-blue-100">
+              ✓ Patient profile dashboard & longitudinal FRESSH progress trends have been updated.
+            </p>
+
+            <button
+              onClick={() => navigate(`/patient/${patientCode}`)}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-2xl shadow-lg shadow-blue-200 transition-all text-sm hover:scale-[1.02]"
+            >
+              View Updated Patient Profile
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

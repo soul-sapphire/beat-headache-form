@@ -115,7 +115,7 @@ export function generateDoctorReportPdf(form, fresshTotal) {
     doc.setFont(Typography.Family, "bold"); doc.setFontSize(Typography.Label.size); doc.setTextColor(...Colors.Muted);
     doc.text("Visit Type:", M + P, cy + 12);
     doc.setFont(Typography.Family, "normal"); doc.setFontSize(Typography.Value.size); doc.setTextColor(...Colors.Text);
-    doc.text(cleanReportText(form.clinicPath?.initiatedBy), M + 18, cy + 12);
+    doc.text(cleanReportText(form.visitType || (form.encounterType === 'initial' ? 'Initial Assessment' : form.clinicPath?.initiatedBy) || "Initial Assessment"), M + 18, cy + 12);
 
     doc.setFont(Typography.Family, "bold"); doc.setFontSize(Typography.Label.size); doc.setTextColor(...Colors.Muted);
     doc.text("Referral:", M + UW/3, cy + 12);

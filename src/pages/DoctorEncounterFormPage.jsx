@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { getPatientByCode, saveEncounterReport } from "../services/patientService";
+import { getPatientByCode, getEncountersForPatient, saveEncounterReport } from "../services/patientService";
+import FresshProgressDashboard from "../components/patient-profile/FresshProgressDashboard";
 import BeatHeadacheNewPatientForm from "../BeatHeadacheNewPatientForm";
 import { getSuggestedDiagnosisSummary, getRedFlagSummary } from "../reportUtils";
 import { AlertCircle, ChevronLeft, Loader2 } from "lucide-react";
@@ -66,30 +67,46 @@ export default function DoctorEncounterFormPage() {
   const navigate = useNavigate();
   
   const [patient, setPatient] = useState(null);
+  const [encounters, setEncounters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [encounterType, setEncounterType] = useState('initial'); // 'initial' | 'followup'
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [checked1, setChecked1] = useState(false);
   const [checked2, setChecked2] = useState(false);
 
   useEffect(() => {
-    async function loadPatient() {
+    async function loadPatientAndEncounters() {
       try {
         const isAdmin = userData?.role === 'admin';
-        const result = await getPatientByCode(
-          patientCode, 
-          userData.uid, 
-          userData.displayName || "Doctor", 
-          userData.email || "",
-          isAdmin
-        );
+        const [pResult, encsResult] = await Promise.all([
+          getPatientByCode(
+            patientCode, 
+            userData.uid, 
+            userData.displayName || "Doctor", 
+            userData.email || "",
+            isAdmin
+          ),
+          getEncountersForPatient(
+            patientCode,
+            userData.uid,
+            userData.displayName || "Doctor",
+            userData.email || "",
+            isAdmin
+          )
+        ]);
         
-        if (!result) {
+        if (!pResult) {
           setError("Patient not found.");
-        } else if (result.accessDenied) {
-          setError(result.message);
+        } else if (pResult.accessDenied) {
+          setError(pResult.message);
         } else {
-          setPatient(result.data);
+          setPatient(pResult.data);
+          const loadedEncs = encsResult || [];
+          setEncounters(loadedEncs);
+          const encCount = loadedEncs.length;
+          const autoMode = encCount === 0 ? 'initial' : 'followup';
+          setEncounterType(autoMode);
         }
       } catch (err) {
         console.error("Error loading patient:", err);
@@ -98,27 +115,54 @@ export default function DoctorEncounterFormPage() {
         setLoading(false);
       }
     }
-    loadPatient();
+    loadPatientAndEncounters();
   }, [patientCode, userData]);
 
   const handleSaveEncounter = async (form, fresshTotal) => {
+    console.log("[DoctorEncounterFormPage] handleSaveEncounter triggered");
+    console.log("Saving encounter...");
+    console.log("patientCode =", patientCode);
+
+    if (!patientCode) {
+      console.error("[DoctorEncounterFormPage] ERROR: patientCode is undefined!");
+      alert("Failed to save encounter: Patient ID is missing.");
+      return;
+    }
+
+    const activeDoctor = userData || userProfile;
+    if (!activeDoctor || !activeDoctor.uid) {
+      console.error("[DoctorEncounterFormPage] ERROR: Doctor is unauthenticated!");
+      alert("Failed to save encounter: Doctor authentication required.");
+      return;
+    }
+
+    const uid = activeDoctor.uid;
+    const name = activeDoctor.displayName || activeDoctor.name || "Doctor";
+    const email = activeDoctor.email || "";
+
     try {
+      const visitTypeLabel = encounterType === 'initial' ? 'Initial Assessment' : 'Follow-up Visit';
       const encounterData = {
         ...buildEncounterData(form, fresshTotal),
+        encounterType,
+        visitType: visitTypeLabel,
         consentAccepted: true,
         consentAcceptedAt: new Date().toISOString(),
         consentVersion: "beat-headache-consent-v1",
       };
 
-      await saveEncounterReport(
+      console.log("[DoctorEncounterFormPage] Calling saveEncounterReport for patientCode:", patientCode);
+
+      const docId = await saveEncounterReport(
         patientCode,
-        userData.uid,
-        userData.displayName || "Doctor",
-        userData.email || "",
+        uid,
+        name,
+        email,
         encounterData
       );
 
-      alert("Encounter saved successfully to patient record.");
+      console.log("[DoctorEncounterFormPage] Encounter created successfully with Document ID =", docId);
+      alert(`${visitTypeLabel} saved successfully to patient record.`);
       navigate(`/patient/${patientCode}`);
     } catch (err) {
       console.error("Encounter save failed:", err);
@@ -262,23 +306,43 @@ export default function DoctorEncounterFormPage() {
       <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
         <div className="mb-4 flex items-center justify-between bg-white px-6 py-4 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex items-center gap-4">
-            <Link to="/doctor/dashboard" className="p-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors">
+            <Link to={`/patient/${patientCode}`} className="p-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors">
               <ChevronLeft className="w-5 h-5" />
             </Link>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Patient Encounter</h2>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                  encounterType === 'initial'
+                    ? 'text-blue-700 bg-blue-50 border-blue-100'
+                    : 'text-purple-700 bg-purple-50 border-purple-100'
+                }`}>
+                  {encounterType === 'initial' ? 'Initial Assessment' : 'Follow-up Visit'}
+                </span>
+                <span className="text-xs font-mono font-bold text-gray-500">{patientCode}</span>
+              </div>
+              <h2 className="text-lg font-bold text-gray-900 mt-0.5">
+                {encounterType === 'initial' ? 'Initial Patient Assessment' : 'Follow-up Encounter'}
+              </h2>
               <p className="text-xs text-gray-500">
-                Patient ID: <span className="font-mono bg-gray-100 px-1 rounded text-gray-700">{patientCode}</span> | Name: {patient.firstName} {patient.lastName}
+                Patient ID: <span className="font-mono bg-gray-100 px-1 rounded text-gray-700">{patientCode}</span> | Name: {patient?.firstName} {patient?.lastName}
               </p>
             </div>
           </div>
         </div>
+
+        {/* FRESSH Progress Dashboard for Follow-up Visits */}
+        {encounterType === 'followup' && encounters && encounters.length > 0 && (
+          <div className="mb-6">
+            <FresshProgressDashboard encounters={encounters} />
+          </div>
+        )}
       </div>
       
       <BeatHeadacheNewPatientForm
         patientContext={patient}
         onSaveEncounter={handleSaveEncounter}
         hideResearchExport
+        encounterType={encounterType}
       />
     </div>
   );

@@ -5,11 +5,14 @@ import { getPatientByCode, getEncountersForPatient } from "../services/patientSe
 import { ChevronLeft, AlertCircle, Loader2 } from "lucide-react";
 
 import PatientSummaryCard from "../components/patient-profile/PatientSummaryCard";
+import FresshProgressDashboard from "../components/patient-profile/FresshProgressDashboard";
 import PatientAnalyticsCards from "../components/patient-profile/PatientAnalyticsCards";
 import EncounterTrendChart from "../components/patient-profile/EncounterTrendChart";
 import EncounterTimeline from "../components/patient-profile/EncounterTimeline";
 import EncounterAnalyticsModal from "../components/patient-profile/EncounterAnalyticsModal";
 import ReportsSection from "../components/patient-profile/ReportsSection";
+
+import PreClinicComparisonCard from "../components/assessment/PreClinicComparisonCard";
 
 export default function PatientProfilePage() {
   console.log("[Profile] 1 Route loaded");
@@ -21,6 +24,7 @@ export default function PatientProfilePage() {
   
   const [patient, setPatient] = useState(null);
   const [encounters, setEncounters] = useState([]);
+  const [publicAssessment, setPublicAssessment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -36,10 +40,15 @@ export default function PatientProfilePage() {
       setLoading(false);
       return;
     }
-    const activeUser = userData || userProfile;
-    const uid = activeUser?.uid || "unknown";
-    const name = activeUser?.displayName || "Doctor";
-    const email = activeUser?.email || "";
+    const activeDoctor = userData || userProfile;
+    if (!activeDoctor || !activeDoctor.uid) {
+      setError("Doctor authentication required to access patient record.");
+      setLoading(false);
+      return;
+    }
+    const uid = activeDoctor.uid;
+    const name = activeDoctor.displayName || activeDoctor.name || "Doctor";
+    const email = activeDoctor.email || "";
 
     setLoading(true);
     setError(null);
@@ -156,18 +165,31 @@ export default function PatientProfilePage() {
             {/* Top Patient Summary */}
             <PatientSummaryCard 
               patient={patient} 
-              latestEncounter={encounters.length > 0 ? encounters[0] : null} 
+              latestEncounter={encounters.length > 0 ? encounters[encounters.length - 1] : null} 
             />
+
+            {/* Pre-Clinic vs Clinic Visit Comparison Card */}
+            {publicAssessment && encounters.length > 0 && (
+              <PreClinicComparisonCard
+                publicAssessment={publicAssessment}
+                firstClinicEncounter={encounters[0]}
+              />
+            )}
 
             {/* Quick Actions */}
             <div className="flex justify-end">
               <Link
-                to={`/doctor/encounter/new/${patient.patientCode}`}
+                to={`/doctor/followup/${patient.patientCode}`}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-2xl font-bold shadow-md shadow-blue-200 transition-all text-center flex items-center gap-2 hover:scale-[1.02]"
               >
-                + Start New Encounter
+                + New Encounter
               </Link>
             </div>
+
+            {/* Headache Progress Dashboard (FRESSH Dashboard) */}
+            {encounters && encounters.length > 0 && (
+              <FresshProgressDashboard encounters={encounters} />
+            )}
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

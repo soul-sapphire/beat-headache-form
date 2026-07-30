@@ -27,6 +27,8 @@ function DebugPanel({ userProfile }) {
   );
 }
 
+import AdminPublicAnalyticsCard from "../components/assessment/AdminPublicAnalyticsCard";
+
 export default function AdminDashboardPage() {
   const { userProfile, logout } = useAuth();
   const navigate = useNavigate();
@@ -136,6 +138,9 @@ export default function AdminDashboardPage() {
             </button>
           </div>
         </header>
+
+        {/* Anonymous Public Assessment Analytics */}
+        <AdminPublicAnalyticsCard />
 
         {/* Pending Doctor Approvals */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

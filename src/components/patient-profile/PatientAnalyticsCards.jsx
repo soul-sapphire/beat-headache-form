@@ -4,8 +4,8 @@ import { TrendingUp, Activity, Hash, CalendarDays, ArrowUpRight, ArrowDownRight 
 export default function PatientAnalyticsCards({ encounters }) {
   if (!encounters || encounters.length === 0) return null;
 
-  const latestEncounter = encounters[0];
-  const initialEncounter = encounters[encounters.length - 1];
+  const initialEncounter = encounters[0];
+  const latestEncounter = encounters[encounters.length - 1];
   
   const latestScore = latestEncounter.fresshScore || 0;
   const initialScore = initialEncounter.fresshScore || 0;
