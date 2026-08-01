@@ -110,8 +110,8 @@ export default function SelfAssessmentPage() {
     formData.cancerHistory;
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8 flex flex-col justify-between">
-      <div className="max-w-3xl mx-auto w-full space-y-6">
+    <div className="min-h-screen bg-slate-50 py-8 px-2 sm:px-4 lg:px-6 flex flex-col justify-between">
+      <div className="max-w-6xl xl:max-w-7xl mx-auto w-full space-y-6">
         {/* Header Progress Tracker */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-4">
           <div className="flex items-center justify-between">
@@ -143,38 +143,38 @@ export default function SelfAssessmentPage() {
 
         {/* STEP 1: WELCOME SCREEN */}
         {step === 1 && (
-          <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 space-y-8 text-center animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl p-8 sm:p-10 shadow-sm border border-gray-100 space-y-8 text-center animate-in fade-in duration-300">
             <div className="w-24 h-24 mx-auto bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-5xl shadow-xs">
               🧠
             </div>
 
-            <div className="space-y-3 max-w-lg mx-auto">
+            <div className="space-y-3 max-w-2xl mx-auto">
               <h2 className="text-3xl font-black text-gray-900">Check Your Headache</h2>
               <p className="text-gray-600 text-sm leading-relaxed font-medium">
                 Understand your headache burden and lifestyle impact in just a few minutes. Simple, friendly, and tailored for adults, teenagers, and parents.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
-              <div className="bg-blue-50/60 p-4 rounded-2xl border border-blue-100 space-y-1">
-                <span className="text-2xl">📊</span>
-                <h4 className="text-xs font-bold text-blue-900">Burden Score</h4>
-                <p className="text-[11px] text-blue-700">0–60 impact score</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 text-left">
+              <div className="bg-blue-50/60 p-5 rounded-2xl border border-blue-100 space-y-1.5 hover:shadow-xs transition-shadow">
+                <span className="text-3xl">📊</span>
+                <h4 className="text-sm font-extrabold text-blue-900">Burden Score</h4>
+                <p className="text-xs text-blue-700 font-medium">0–60 impact score</p>
               </div>
-              <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100 space-y-1">
-                <span className="text-2xl">🍎</span>
-                <h4 className="text-xs font-bold text-emerald-900">Mini FRESSH</h4>
-                <p className="text-[11px] text-emerald-700">Lifestyle rating</p>
+              <div className="bg-emerald-50/60 p-5 rounded-2xl border border-emerald-100 space-y-1.5 hover:shadow-xs transition-shadow">
+                <span className="text-3xl">🍎</span>
+                <h4 className="text-sm font-extrabold text-emerald-900">Mini FRESSH</h4>
+                <p className="text-xs text-emerald-700 font-medium">Lifestyle rating</p>
               </div>
-              <div className="bg-amber-50/60 p-4 rounded-2xl border border-amber-100 space-y-1">
-                <span className="text-2xl">💡</span>
-                <h4 className="text-xs font-bold text-amber-900">Personal Advice</h4>
-                <p className="text-[11px] text-amber-700">Actionable steps</p>
+              <div className="bg-amber-50/60 p-5 rounded-2xl border border-amber-100 space-y-1.5 hover:shadow-xs transition-shadow">
+                <span className="text-3xl">💡</span>
+                <h4 className="text-sm font-extrabold text-amber-900">Personal Advice</h4>
+                <p className="text-xs text-amber-700 font-medium">Actionable steps</p>
               </div>
-              <div className="bg-purple-50/60 p-4 rounded-2xl border border-purple-100 space-y-1">
-                <span className="text-2xl">📱</span>
-                <h4 className="text-xs font-bold text-purple-900">QR Passport</h4>
-                <p className="text-[11px] text-purple-700">Track over time</p>
+              <div className="bg-purple-50/60 p-5 rounded-2xl border border-purple-100 space-y-1.5 hover:shadow-xs transition-shadow">
+                <span className="text-3xl">📱</span>
+                <h4 className="text-sm font-extrabold text-purple-900">QR Passport</h4>
+                <p className="text-xs text-purple-700 font-medium">Track over time</p>
               </div>
             </div>
 
@@ -187,7 +187,7 @@ export default function SelfAssessmentPage() {
               </button>
 
               {/* Returning Patient Block (28px spacing) */}
-              <div className="border-t border-gray-100 pt-7 space-y-4 max-w-md mx-auto">
+              <div className="border-t border-gray-100 pt-7 space-y-4 max-w-lg mx-auto">
                 <div className="space-y-1 text-center">
                   <h3 className="text-sm font-extrabold text-gray-900">
                     Already have a Digital Headache Passport?

@@ -14,7 +14,6 @@ import {
   Activity,
   QrCode
 } from "lucide-react";
-import CTA from "../components/CTA";
 
 export default function HomePage() {
   const trustCards = [
@@ -130,9 +129,10 @@ export default function HomePage() {
                   </Link>
                   <Link
                     to="/new-patient"
-                    className="flex items-center justify-center space-x-2 px-6 py-4 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white border border-slate-200 dark:border-white/20 rounded-2xl font-bold transition-all duration-200 hover:-translate-y-0.5"
+                    className="flex items-center justify-center space-x-2 px-8 py-4 bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:from-cyan-600 hover:via-sky-600 hover:to-blue-700 text-white rounded-2xl font-black shadow-lg shadow-cyan-500/25 hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5 cursor-pointer"
                   >
-                    <span>Clinical Intake</span>
+                    <span>Start New Patient Form</span>
+                    <ArrowRight className="h-5 w-5" />
                   </Link>
                   <Link
                     to="/about"
@@ -344,9 +344,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* F) CTA Section */}
-      <CTA />
     </div>
   );
 }
